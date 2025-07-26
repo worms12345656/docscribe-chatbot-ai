@@ -1,0 +1,706 @@
+import React, { useState, useEffect, useRef } from "react";
+import { useSelector } from "react-redux";
+import { io } from "socket.io-client";
+import ChatLayout from "./ChatLayout";
+import apiClient, { fileApiClient } from "@/js/core/ApiClient";
+import { RESPONSE_STATUS_OK } from "@/js/Constant";
+import { convertTimestamp, getToday } from "@/utils/datetime";
+import { convertFileUpload, convertImageUpload } from "@/js/core/FileProcesser";
+import { FormProvider, useForm } from "react-hook-form";
+import { useInView } from "react-intersection-observer";
+import { mockMessages } from "./const";
+import { useIntersection } from "react-use";
+
+const ChatApp = () => {
+  const { user } = useSelector((state) => state.auth);
+  const { oa } = useSelector((state) => state.oa);
+  const [socket, setSocket] = useState(null);
+  const [customer, setCustomer] = useState();
+  const [oaCustomers, setOaCustomers] = useState([]);
+  const [isChatting, setIsChatting] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(2);
+  const [haveNewMessageBox, setHaveNewMessageBox] = useState(false);
+  const socketRef = useRef(null);
+  const bottomRef = useRef(null);
+  const chatRef = useRef(null);
+  const { ref: lastMessageRef, inView: lastMessageVisibility } = useInView();
+  const cacheMessages = new Set();
+  const handleScrollToBottom = () => {
+    if (bottomRef) {
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({
+          // behavior: "smooth"
+        });
+      }, 1);
+    }
+  };
+
+  const intersection = useIntersection(bottomRef, {
+    root: null,
+    rootMargin: "0px",
+    threshold: 1,
+  });
+
+  // const fetchOACustomerListData = async (isRendering = false) => {
+  //   // const response = await apiClient.get(`/oas/customers/list-order-by-message?oaId=${oa?.id}`);
+  //   // if (response.code === RESPONSE_STATUS_OK) {
+  //   //   const oaCustomers = response.data.oaCustomers;
+  //   //   setOaCustomers(oaCustomers);
+  //   //   isRendering && setCustomer(oaCustomers[0]);
+  //   // }
+  //   const response = await apiClient.get(`/oas/customers/list?oaId=${oa?.id}`);
+  //   if (response.code === RESPONSE_STATUS_OK) {
+  //     const oaCustomers = response.data.oaCustomers;
+  //     setOaCustomers(oaCustomers);
+  //     isRendering && setCustomer(oaCustomers[0]);
+  //   }
+  // };
+
+  const getMessageData = (message) => {
+    const type =
+      customer?.zaloOAUserId === message.zaloSenderId ? "receiver" : "oa_send";
+    const sendTime = convertTimestamp(Number(message.timestamp));
+    console.log(message.payload);
+    if (message.event.includes("send_file")) {
+      return {
+        id: message.id,
+        text: message.text,
+        type,
+        sendTime,
+        image: {
+          files: {
+            name: message.attachments[0]?.payload.name,
+            size: message.attachments[0]?.payload.size,
+          },
+          url: message.attachments[0]?.payload.url,
+        },
+        sending: false,
+        error: "",
+        reaction: message.reactions,
+      };
+    }
+    if (message.event.includes("send_image")) {
+      return {
+        id: message.zaloOaMsgId,
+        text: message.text,
+        type,
+        sendTime,
+        image: message.attachments[0]?.payload.url,
+        sending: false,
+        error: "",
+        reaction: message.reactions,
+      };
+    }
+    if (message.event.includes("send_sticker")) {
+      return {
+        id: message.zaloOaMsgId,
+        text: message.text,
+        type,
+        sendTime,
+        sticker: message.attachments[0]?.payload.url,
+        sending: false,
+        error: "",
+        reaction: message.reactions,
+      };
+    }
+    if (message.event.includes("send_template")) {
+      return {
+        id: message.zaloOaMsgId,
+        text: message.text,
+        type,
+        sendTime,
+        image: "",
+        attachments: message.attachments,
+        payload: message.payload,
+        sending: false,
+        error: "",
+        reaction: message.reactions,
+      };
+    }
+    if (message.event.includes("send_list")) {
+      return {
+        id: message.zaloOaMsgId,
+        text: message.text,
+        type,
+        sendTime,
+        image: "",
+        attachments: message.attachments,
+        sending: false,
+        error: "",
+        reaction: message.reactions,
+      };
+    }
+    return {
+      id: message.zaloOaMsgId,
+      text: message.text,
+      type,
+      sendTime,
+      image: "",
+      sending: false,
+      error: "",
+      reaction: message.reactions,
+    };
+  };
+
+  const appendPage = (message) => {
+    if (chatRef.current) {
+      const previousHeight = chatRef.current.scrollHeight;
+      const previousPosition = chatRef.current.scrollTop;
+
+      setMessages((prev) => [
+        ...message
+          .sort((a, b) => a.timestamp - b.timestamp)
+          .map((item) => getMessageData(item)),
+        ...prev,
+      ]);
+
+      setTimeout(() => {
+        const newHeight = chatRef.current.scrollHeight;
+        chatRef.current.scrollTop =
+          newHeight - previousHeight + previousPosition;
+      }, 0);
+    }
+  };
+
+  const fetchCustomerMessageListData = async (page, add = false) => {
+    if (add) {
+      appendPage(mockMessages);
+      return;
+    }
+    setMessages(
+      mockMessages
+        .sort((a, b) => a.timestamp - b.timestamp)
+        .map((item) => getMessageData(item))
+    );
+    setLoading(false);
+    // const response = await apiClient.get(`/oas/messages/list?oaId=${oa?.id}&customerId=${customer?.zaloOAUserId}&limit=10&page=${page}`);
+    // const response = await apiClient.get(`/oas/messages/list?oaId=${oa?.id}&customerId=8004980613029424672&limit=10&page=1`);
+    // if (response.code === RESPONSE_STATUS_OK) {
+    //   const messages = response.data.messages;
+    //   setLoading(false);
+    //   if (messages.length === 0) return;
+    //   if (add) {
+    //     appendPage(messages);
+    //     setPage(page + 1);
+    //     return;
+    //   } else {
+    //     setMessages(messages.sort((a, b) => a.timestamp - b.timestamp).map((item) => getMessageData(item)));
+    //   }
+    //   // console.log("messages", messages);
+    // }
+  };
+
+  const methods = useForm();
+  const { handleSubmit, reset } = methods;
+
+  useEffect(() => {
+    if (!socketRef.current && oa?.id) {
+      socketRef.current = io(getSocketDomain(), {
+        query: { oaId: oa?.id },
+      });
+    }
+
+    const handleReceiveMessage = (data) => {
+      console.log("data received", data);
+      if (socketRef.current && socketRef.current.connected) {
+        // console.log("here1")
+        if (cacheMessages.has(data.hash)) return;
+        // console.log("here2", data, customer);
+        if (data?.customerId !== customer?.zaloOAUserId) return;
+        // console.log("here3")
+        let tmpType = data.sender === "oa" ? "oa_send" : "receiver";
+        if (tmpType === "oa_send") {
+          handleScrollToBottom();
+        } else {
+          !intersection.intersectionRatio && setHaveNewMessageBox(true);
+        }
+        console.log("data message received", data);
+        if (data?.fileUrl) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: data.zaloOaMsgId,
+              text: data.message,
+              type: tmpType,
+              sendTime: convertTimestamp(getToday()),
+              image: {
+                files: {
+                  name: data.fileName,
+                  size: data.fileSize,
+                },
+                url: data.fileUrl,
+              },
+              sending: false,
+              error: "",
+              reaction: [],
+            },
+          ]);
+        } else if (data?.sticker) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: data.zaloOaMsgId,
+              text: data.message,
+              type: tmpType,
+              sendTime: convertTimestamp(getToday()),
+              sticker: data.image,
+              sending: false,
+              error: "",
+              reaction: [],
+            },
+          ]);
+        } else if (data?.image?.files) {
+          const blob = new Blob([data.image.files], { type: data.fileType });
+          const file = new File([blob], data.fileName, { type: blob.type });
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: data.zaloOaMsgId,
+              text: data.message,
+              type: tmpType,
+              sendTime: convertTimestamp(getToday()),
+              image: {
+                files: file,
+                url: data.image.url,
+              },
+              sending: false,
+              error: "",
+              reaction: [],
+            },
+          ]);
+        } else if (data?.attachments) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: data.zaloOaMsgId,
+              text: data.message,
+              type: tmpType,
+              sendTime: convertTimestamp(getToday()),
+              image: data.image,
+              attachments: data.attachments,
+              sending: false,
+              error: "",
+              reaction: [],
+            },
+          ]);
+        } else if (data?.payload) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: data.zaloOaMsgId,
+              text: data.message,
+              type: tmpType,
+              sendTime: convertTimestamp(getToday()),
+              payload: data.payload,
+              sending: false,
+              error: "",
+              reaction: [],
+            },
+          ]);
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: data.zaloOaMsgId,
+              text: data.message,
+              type: tmpType,
+              sendTime: convertTimestamp(getToday()),
+              image: data.image,
+              sending: false,
+              error: "",
+              reaction: [],
+            },
+          ]);
+        }
+        cacheMessages.add(data.hash);
+      }
+    };
+
+    //a ddi hopj cai ddax e m check data receive nhe, oke anh, anh out em check cho
+    const handleReceiveReaction = (data) => {
+      if (!socketRef.current || !socketRef.current.connected) return;
+
+      const index = messages.findIndex((item) => item.id === data.messageId);
+
+      if (data.reactIcon === "/-remove") {
+        setMessages((prev) => {
+          prev[index] = {
+            ...prev[index],
+            reaction: [
+              ...prev[index].reaction.filter(
+                (item) => item.sender_id !== data?.senderId
+              ),
+            ],
+          };
+          return [...prev];
+        });
+      } else {
+        setMessages((prev) => {
+          prev[index] = {
+            ...prev[index],
+            reaction: [
+              ...prev[index]?.reaction,
+              {
+                sender_id: data.senderId,
+                icon: data.reactIcon,
+              },
+            ],
+          };
+          return [...prev];
+        });
+      }
+    };
+
+    socketRef.current?.on("receive_message", handleReceiveMessage);
+    socketRef.current?.on("react_message", handleReceiveReaction);
+
+    return () => {
+      socketRef.current?.off("receive_message");
+      socketRef.current?.off("react_message");
+    };
+  }, [oa, customer, messages]);
+
+  // useEffect(() => {
+  //   oa && fetchOACustomerListData(true);
+  // }, [oa]);
+
+  // useEffect(() => {
+  //   oa && fetchOACustomerListData();
+  // }, [oa]);
+
+  const setReaction = async (index, emoji) => {
+    const data = {
+      oaId: oa?.id,
+      customerId: customer?.zaloOAUserId,
+      messageId: messages[index].id,
+      reactIcon: emoji,
+    };
+    const response = await apiClient.post("/oas/messages/react-message", data);
+    // if (response.code === RESPONSE_STATUS_OK) {
+    //   if (emoji === "/-remove") {
+    //     console.log("reaction", messages[index].reaction);
+    //     return setMessages((prev) => {
+    //       prev[index] = {
+    //         ...prev[index],
+    //         reaction: [...prev[index].reaction.filter((item) => item.sender_id === customer?.zaloOAUserId)]
+    //       };
+    //       return [...prev];
+    //     });
+    //   }
+    //   setMessages((prev) => {
+    //     prev[index] = {
+    //       ...prev[index],
+    //       reaction: [
+    //         ...prev[index].reaction,
+    //         {
+    //           icon: emoji
+    //         }
+    //       ]
+    //     };
+    //     return [...prev];
+    //   });
+    // }
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    customer && fetchCustomerMessageListData(1);
+    setPage(2);
+    handleScrollToBottom();
+  }, [customer]);
+
+  const onChangeCustomer = (customer) => {
+    setCustomer(customer);
+    reset();
+  };
+
+  const sendImagesMessage = async (input) => {
+    const files = input.image;
+    const formData = new FormData();
+    formData.append("oaId", oa?.id);
+    formData.append("customerId", customer?.zaloOAUserId);
+    formData.append("message", input.message);
+    if (files) {
+      const thumbnailBlob = await convertImageUpload(files);
+      formData.append("image", files);
+    }
+    setMessages((prev) => [
+      ...prev,
+      {
+        text: input.message,
+        type: "oa_send",
+        sendTime: convertTimestamp(Date.now()),
+        image: input.imagePreview,
+        sending: true,
+        error: "",
+        reaction: [],
+      },
+    ]);
+    reset();
+    handleScrollToBottom();
+    try {
+      const response = await fileApiClient.post(
+        "/oas/messages/send-message",
+        formData
+      );
+      if (response.code === RESPONSE_STATUS_OK) {
+        setMessages((prev) => [...prev.slice(0, -1)]);
+        socketRef.current.emit("send_message", {
+          oaId: oa?.id,
+          customerId: customer?.zaloOAUserId,
+          image: input.imagePreview,
+          message: input.message,
+          time: Date.now(),
+        });
+      } else {
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          {
+            text: input.message,
+            type: "oa_send",
+            sendTime: convertTimestamp(Date.now()),
+            image: input.imagePreview,
+            sending: true,
+            error: "Cannot send message",
+            reaction: [],
+          },
+        ]);
+        handleScrollToBottom();
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  const sendFilesMessage = async (input) => {
+    const files = input.filePreview.files;
+
+    const imagePreviewsArray = [];
+
+    const formData = new FormData();
+    formData.append("oaId", oa?.id);
+    formData.append("customerId", customer?.zaloOAUserId);
+
+    if (files) {
+      const thumbnailBlob = await convertFileUpload(files);
+      formData.append("file", files);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: "",
+          type: "oa_send",
+          sendTime: convertTimestamp(Date.now()),
+          image: input.filePreview,
+          sending: true,
+          error: "",
+          reaction: [],
+        },
+      ]);
+      reset();
+      handleScrollToBottom();
+      try {
+        const response = await fileApiClient.post(
+          "/oas/messages/send-file-message",
+          formData
+        );
+        if (response.code === RESPONSE_STATUS_OK) {
+          setMessages((prev) => [...prev.slice(0, -1)]);
+          socketRef.current.emit("send_message", {
+            oaId: oa?.id,
+            customerId: customer?.zaloOAUserId,
+            image: input.filePreview,
+            message: input.message,
+            time: Date.now(),
+            fileName: files.name,
+            fileType: files.type,
+          });
+        } else {
+          setMessages((prev) => [
+            ...prev.slice(0, -1),
+            {
+              text: input.message,
+              type: "oa_send",
+              sendTime: convertTimestamp(Date.now()),
+              image: input.filePreview,
+              sending: true,
+              error: "Cannot send message",
+              reaction: [],
+            },
+          ]);
+          handleScrollToBottom();
+        }
+      } catch (e) {
+        console.log(e);
+      }
+    }
+  };
+
+  // const sendStickerMessage = async (input) => {
+  //   const data = {
+  //     oaId: oa?.id,
+  //     customerId: customer?.zaloOAUserId,
+  //     sticker: input.sticker
+  //   };
+
+  //   setMessages((prev) => [
+  //     ...prev,
+  //     {
+  //       text: "",
+  //       type: "oa_send",
+  //       sendTime: convertTimestamp(Date.now()),
+  //       image: input.sticker,
+  //       sending: true,
+  //       error: "",
+  //       reaction: []
+  //     }
+  //   ]);
+  //   reset();
+  //   handleScrollToBottom();
+  //   try {
+  //     setMessages((prev) => [
+  //       ...prev.slice(0, -1),
+  //       {
+  //         text: input.message,
+  //         type: "oa_send",
+  //         sendTime: convertTimestamp(Date.now()),
+  //         image: input.sticker,
+  //         sending: true,
+  //         error: "Cannot send message",
+  //         reaction: []
+  //       }
+  //     ]);
+  //     handleScrollToBottom();
+  //     // const response = await apiClient.post("/oas/messages/send-message", data);
+  //     // if (response.code === RESPONSE_STATUS_OK) {
+  //     //   setMessages((prev) => [...prev.slice(0, -1)]);
+  //     //   socketRef.current.emit("send_message", {
+  //     //     oaId: oa?.id,
+  //     //     customerId: customer?.zaloOAUserId,
+  //     //     image: input.sticker,
+  //     //     message: input.message,
+  //     //     time: Date.now()
+  //     //   });
+  //     // } else {
+  //     //   setMessages((prev) => [
+  //     //     ...prev.slice(0, -1),
+  //     //     {
+  //     //       text: input.message,
+  //     //       type: "oa_send",
+  //     //       sendTime: convertTimestamp(Date.now()),
+  //     //       image: input.sticker,
+  //     //       sending: true,
+  //     //       error: "Cannot send message",
+  //     //       reaction: []
+  //     //     }
+  //     //   ]);
+  //     //   handleScrollToBottom();
+  //     // }
+  //   } catch (e) {
+  //     console.log(e);
+  //   }
+  // };
+
+  const sendMessage = handleSubmit(async (input) => {
+    if (input.image) {
+      return await sendImagesMessage(input);
+    }
+    if (input.filePreview) {
+      return await sendFilesMessage(input);
+    }
+    if (input.sticker) {
+      return await sendStickerMessage(input);
+    }
+    const data = {
+      oaId: oa?.id,
+      customerId: customer?.zaloOAUserId,
+      message: input.message,
+      time: Date.now(),
+    };
+    setMessages((prev) => [
+      ...prev,
+      {
+        text: data.message,
+        type: "oa_send",
+        sendTime: convertTimestamp(data.time),
+        image: data.image,
+        sending: true,
+        error: "",
+        reaction: [],
+      },
+    ]);
+    reset();
+    // handleScrollToBottom();
+
+    const response = await apiClient.post("/oas/messages/send-message", data);
+    // console.log("data", data);
+    // console.log("Hello", response);
+    if (response.code !== RESPONSE_STATUS_OK) {
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        {
+          text: data.message,
+          type: "oa_send",
+          sendTime: convertTimestamp(data.time),
+          image: data.image,
+          sending: true,
+          error: "Cannot send message",
+          reaction: [],
+        },
+      ]);
+      // handleScrollToBottom();
+    } else {
+      setMessages((prev) => [...prev.slice(0, -1)]);
+      // socketRef.current?.emit("send_message", data);
+    }
+  });
+
+  const onChangeInput = (data) => {
+    setMessage(data);
+  };
+
+  useEffect(() => {
+    if (!lastMessageVisibility) return;
+    fetchCustomerMessageListData(page, true);
+  }, [lastMessageVisibility]);
+
+  console.log("intersection", intersection?.intersectionRatio);
+
+  useEffect(() => {
+    const bottomInView = intersection?.intersectionRatio;
+    bottomInView && setHaveNewMessageBox(false);
+  }, [intersection?.intersectionRatio]);
+
+  return (
+    <>
+      <FormProvider {...methods}>
+        <form onSubmit={sendMessage}>
+          <ChatLayout
+            lastMessageRef={lastMessageRef}
+            sendMessage={sendMessage}
+            customer={customer}
+            message={message}
+            messages={messages}
+            onChangeInput={onChangeInput}
+            bottomRef={bottomRef}
+            oaCustomers={oaCustomers}
+            onChangeCustomer={onChangeCustomer}
+            sendImagesMessage={sendImagesMessage}
+            sendFilesMessage={sendFilesMessage}
+            chatRef={chatRef}
+            setReaction={setReaction}
+            handleScrollToBottom={handleScrollToBottom}
+            haveNewMessageBox={haveNewMessageBox}
+          ></ChatLayout>
+          {/* <BasicBackdrop open={loading} /> */}
+        </form>
+      </FormProvider>
+    </>
+  );
+};
+
+export default ChatApp;

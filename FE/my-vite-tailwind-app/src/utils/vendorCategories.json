@@ -1,0 +1,12 @@
+[
+  { "id": 1, "name": "Wedding Invitations" },
+  { "id": 2, "name": "Restaurants" },
+  { "id": 3, "name": "Wedding Attire" },
+  { "id": 4, "name": "Wedding Photography Studio" },
+  { "id": 5, "name": "Wedding Cakes" },
+  { "id": 6, "name": "Wedding Jewelry" },
+  { "id": 7, "name": "Makeup Services" },
+  { "id": 8, "name": "Theater and Wedding Design" },
+  { "id": 9, "name": "Entertainment" },
+  { "id": 10, "name": "Other Services" }
+]
