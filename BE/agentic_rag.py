@@ -5,13 +5,11 @@ from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_core.tools import create_retriever_tool, tool
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
-from langchain_community.document_loaders import DirectoryLoader
 from langgraph.checkpoint.memory import InMemorySaver
 from typing import Literal
 import os
 import platform
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.tools.retriever import create_retriever_tool
 from langgraph.graph import MessagesState, StateGraph, START, END
@@ -33,6 +31,7 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
+config = {"configurable": {"thread_id": "1"}}
 
 # Custom loader for PDF files using PyPDF2
 
@@ -285,7 +284,7 @@ def grade_documents(state: MessagesState) -> Literal["generate_answer", "rewrite
     """Determine whether the retrieved documents are relevant to the question."""
     logger.info("Grading documents for relevance")
     try:
-        if state['messages'][-1].name == "tts":
+        if state['messages'][-1].tool_call_id:
             return "generate_answer"
         question = state["messages"][0].content
         context = state["messages"][-1].content
@@ -327,19 +326,15 @@ def generate_answer(state: MessagesState):
         if response.tool_calls:
             for tool_call in response.tool_calls:
                 # Call the actual tool
-                tool_name = tool_call["name"]
-                tool_args = tool_call["args"]
-                if tool_name in tool_lookup:
-                    tool_fn = tool_lookup[tool_name]
-                    tool_result = tool_fn.invoke(tool_call["args"])
-                    # Return result back to model
-                    second_response = response_model.invoke([
-                        HumanMessage(content=prompt),
-                        AIMessage(tool_calls=[tool_call], content=''),
-                        ToolMessage(
-                            tool_call_id=tool_call["id"], content=tool_result)
-                    ])
-                    return {"messages": [second_response]}
+                # Return result back to model
+                second_response = response_model.invoke([
+                    HumanMessage(content=prompt),
+                    AIMessage(tool_calls=[tool_call], content=''),
+                    ToolMessage(
+                        tool_call_id=tool_call["id"], content=state["messages"][-1].content)
+                ])
+                logger.info(f"response: {second_response}")
+                return {"messages": [second_response]}
         logger.debug(f"Generated answer: {response.content[:100]}...")
         return {"messages": [response]}
     except Exception as e:
@@ -347,7 +342,6 @@ def generate_answer(state: MessagesState):
         raise
 
 
-memory = InMemoryVectorStore(embedding=os.getenv("EMBEDDING_MODEL"))
 # Set up the workflow
 workflow = StateGraph(MessagesState)
 workflow.add_node(generate_query_or_respond)
@@ -363,7 +357,7 @@ workflow.add_edge(START, "generate_query_or_respond")
 workflow.add_conditional_edges(
     "generate_query_or_respond",
     tools_condition,
-    {"tools": "tools", END: END},
+    {"tools": "tools", END: END}
 )
 tool_node = ToolNode(tools=tools)
 workflow.add_node("tools", tool_node)
@@ -371,7 +365,6 @@ workflow.add_node("tools", tool_node)
 workflow.add_edge("generate_answer", END)
 workflow.add_edge("rewrite_question", "generate_query_or_respond")
 workflow.add_conditional_edges("tools", grade_documents)
-config = {"configurable": {"thread_id": "1"}}
 # Compile the graph
 try:
 
@@ -398,7 +391,7 @@ async def handle_user_input():
             break
         logger.info(f"Received user input: {user_input}")
         try:
-            async for chunk in graph.astream({"messages": [{"role": "user", "content": user_input}]}, config, stream_mode="values"):
+            async for chunk in graph.astream({"messages": [{"role": "user", "content": user_input}]}, config):
                 for node, update in chunk.items():
                     if node == "generate_answer":
                         logger.info("Outputting generated answer")
@@ -425,15 +418,15 @@ if __name__ == "__main__":
         raise
 
 
-# try:
-#     # Get the graph as PNG bytes
-#     png_bytes = graph.get_graph().draw_mermaid_png()
+try:
+    # Get the graph as PNG bytes
+    png_bytes = graph.get_graph().draw_mermaid_png()
 
-#     # Write to file
-#     with open("graph.png", "wb") as f:
-#         f.write(png_bytes)
-#     print("Graph image saved to 'graph.png'")
-# except Exception as e:
-#     print(f"Failed to save graph image: {e}")
-#     # This requires some extra dependencies and is optional
-#     pass
+    # Write to file
+    with open("graph.png", "wb") as f:
+        f.write(png_bytes)
+    print("Graph image saved to 'graph.png'")
+except Exception as e:
+    print(f"Failed to save graph image: {e}")
+    # This requires some extra dependencies and is optional
+    pass
