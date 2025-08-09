@@ -83,6 +83,14 @@ def load_txt(file_path: str) -> List[Document]:
         return []
 
 
+embedding_client = OpenAIEmbeddings(
+    base_url=os.environ.get(
+        "OPENAI_API_BASE", "https://api.openai.com/v1"),
+    model=os.environ.get("EMBEDDING_MODEL", "text-embedding-ada-002"),
+    api_key=os.environ.get(
+        "EMBEDDING_KEY", os.environ.get("OPENAI_API_KEY"))
+)
+
 # Load and process documents from directory
 directory_path = "./documents"
 docs_list = []
@@ -141,13 +149,7 @@ try:
     logger.info("Initializing Chroma vector store")
     vectorstore = Chroma(
         persist_directory="./chroma_db",
-        embedding_function=OpenAIEmbeddings(
-            base_url=os.environ.get(
-                "OPENAI_API_BASE", "https://api.openai.com/v1"),
-            model=os.environ.get("EMBEDDING_MODEL", "text-embedding-ada-002"),
-            api_key=os.environ.get(
-                "EMBEDDING_KEY", os.environ.get("OPENAI_API_KEY"))
-        )
+        embedding_function=embedding_client
     )
     logger.info("Chroma vector store initialized successfully")
 except Exception as e:
@@ -188,6 +190,16 @@ retriever_tool = create_retriever_tool(
     description="Search and return information from documents (PDF and TXT) stored in the directory, including document name metadata.",
 )
 
+IMPROVE_PROMPT = (
+    "You are a question expert specialized in clarifying questions from keywords. "
+    "If user question mention any keywords about documents, rewrite the input with more details that can help the question  more relevant to the stored documents"
+    "Here is the initial question:"
+    "\n ------- \n"
+    "{question}"
+    "\n ------- \n"
+    "Formulate an improved question that more relevant to the stored documents:"
+)
+
 
 @tool
 def tts(text):
@@ -195,6 +207,14 @@ def tts(text):
     text_to_speech(text)
     logger.info(f"Done generating")
     return "Your speech is ready to use"
+
+
+# @tool
+# def rewrite_user_question(text):
+#     """Return an improved question's it can relevant to the documents"""
+#     results = vectorstore.similarity_search_with_score(text, k=1)
+#     logger.info(f"Rewrite Question")
+#     return results
 
 
 tools = [tts, retriever_tool]
@@ -273,7 +293,27 @@ def generate_query_or_respond(state: MessagesState):
     """Call the model to generate a response or retrieve information based on the current state."""
     logger.info("Generating query or response")
     try:
+        logger.info(state["messages"])
         response = response_model.invoke(state["messages"])
+        logger.debug(f"Generated response: {response.content[:100]}...")
+        return {"messages": [response]}
+    except Exception as e:
+        logger.error(f"Error in generate_query_or_respond: {str(e)}")
+        raise
+
+
+def rewrite_user_question(state: MessagesState):
+    """Return an improved question's it can relevant to the documents"""
+    logger.info("Generating rewrite_user_question")
+    try:
+        question = state["messages"][0].content
+        score = vectorstore.similarity_search_with_score(question, k=1)
+        if score and score[0][1] > 0.8:
+            prompt = IMPROVE_PROMPT.format(question=question)
+        else:
+            prompt = question
+        response = response_model.invoke([{"role": "user", "content": prompt}])
+        logger.info(f"")
         logger.debug(f"Generated response: {response.content[:100]}...")
         return {"messages": [response]}
     except Exception as e:
@@ -395,7 +435,18 @@ async def handle_user_input():
         except Exception as e:
             logger.error(f"Error processing user input: {str(e)}")
             print("Chatbot: An error occurred. Please try again.")
+try:
+    # Get the graph as PNG bytes
+    png_bytes = graph.get_graph().draw_mermaid_png()
 
+    # Write to file
+    with open("graph.png", "wb") as f:
+        f.write(png_bytes)
+    print("Graph image saved to 'graph.png'")
+except Exception as e:
+    print(f"Failed to save graph image: {e}")
+    # This requires some extra dependencies and is optional
+    pass
 # Run the chatbot
 if __name__ == "__main__":
     logger.info("Starting main execution")
@@ -409,17 +460,3 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Error in main execution: {str(e)}")
         raise
-
-
-try:
-    # Get the graph as PNG bytes
-    png_bytes = graph.get_graph().draw_mermaid_png()
-
-    # Write to file
-    with open("graph.png", "wb") as f:
-        f.write(png_bytes)
-    print("Graph image saved to 'graph.png'")
-except Exception as e:
-    print(f"Failed to save graph image: {e}")
-    # This requires some extra dependencies and is optional
-    pass
