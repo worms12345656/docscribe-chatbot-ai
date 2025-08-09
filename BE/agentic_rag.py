@@ -223,7 +223,6 @@ GRADE_PROMPT = (
 
 REWRITE_PROMPT = (
     "Look at the input and try to reason about the underlying semantic intent / meaning about the documents you have retrieved.\n"
-    "If input mention any keywords that meaning about documents, rewrite the input with more detail that relevant to the stored documents"
     "Here is the initial question:"
     "\n ------- \n"
     "{question}"
@@ -242,7 +241,7 @@ GENERATE_PROMPT = (
 )
 
 IMPROVE_PROMPT = (
-    "You are an helpful assistant for improving the response"
+    "You are an assistant for make response better "
     "Use the following response context of system and return a better response base on user question"
     "Question: {question} \n"
     "Context: {context}"
@@ -311,7 +310,7 @@ def rewrite_question(state: MessagesState):
         question = state["messages"][0].content
         prompt = REWRITE_PROMPT.format(question=question)
         response = response_model.invoke([{"role": "user", "content": prompt}])
-        logger.info(f"Rewritten question: {response}")
+        logger.debug(f"Rewritten question: {response.content}")
         return {"messages": [{"role": "user", "content": response.content}]}
     except Exception as e:
         logger.error(f"Error in rewrite_question: {str(e)}")
@@ -328,8 +327,6 @@ def generate_answer(state: MessagesState):
             prompt = IMPROVE_PROMPT.format(question=question, context=context)
         else:
             prompt = GENERATE_PROMPT.format(question=question, context=context)
-
-        # logger.info(f"prompt: {prompt}")
         response = response_model.invoke([{"role": "user", "content": prompt}])
         logger.debug(f"Generated answer: {response.content[:100]}...")
         return {"messages": [response]}
@@ -344,7 +341,7 @@ workflow.add_node(generate_query_or_respond)
 workflow.add_node(rewrite_question)
 workflow.add_node(generate_answer)
 
-workflow.add_edge(START, "rewrite_question")
+workflow.add_edge(START, "generate_query_or_respond")
 # workflow.add_conditional_edges(
 #     "generate_query_or_respond",
 #     tools_condition,
