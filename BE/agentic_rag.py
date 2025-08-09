@@ -185,7 +185,7 @@ retriever = vectorstore.as_retriever()
 retriever_tool = create_retriever_tool(
     retriever,
     "retrieve_documents",
-    "Search and return information from documents (PDF and TXT) stored in the directory, including document name metadata.",
+    description="Search and return information from documents (PDF and TXT) stored in the directory, including document name metadata.",
 )
 
 
@@ -197,14 +197,7 @@ def tts(text):
     return "Your speech is ready to use"
 
 
-@tool
-def upload_pdf(text):
-    """Reading the upload pdf and store it into vector database for searching"""
-    load_pdf(text)
-    return "Successfully loaded PDF"
-
-
-tools = [tts, upload_pdf, retriever_tool]
+tools = [tts, retriever_tool]
 tool_lookup = {tool.name: tool for tool in tools}
 
 
@@ -219,6 +212,7 @@ response_model = ChatOpenAI(
 ).bind_tools(tools)
 
 # Define prompts
+
 GRADE_PROMPT = (
     "You are a grader assessing relevance of a retrieved document to a user question. \n "
     "Here is the retrieved document: \n\n {context} \n\n"
@@ -228,12 +222,13 @@ GRADE_PROMPT = (
 )
 
 REWRITE_PROMPT = (
-    "Look at the input and try to reason about the underlying semantic intent / meaning.\n"
+    "Look at the input and try to reason about the underlying semantic intent / meaning about the documents you have retrieved.\n"
+    "If input mention any keywords that meaning about documents, rewrite the input with more detail that relevant to the stored documents"
     "Here is the initial question:"
     "\n ------- \n"
     "{question}"
     "\n ------- \n"
-    "Formulate an improved question:"
+    "Formulate an improved question that more relevant to the stored documents:"
 )
 
 GENERATE_PROMPT = (
@@ -242,6 +237,13 @@ GENERATE_PROMPT = (
     "Include the document name from metadata if available. "
     "If you don't know the answer, just say that you don't know. "
     "Use three sentences maximum and keep the answer concise.\n"
+    "Question: {question} \n"
+    "Context: {context}"
+)
+
+IMPROVE_PROMPT = (
+    "You are an helpful assistant for improving the response"
+    "Use the following response context of system and return a better response base on user question"
     "Question: {question} \n"
     "Context: {context}"
 )
@@ -284,12 +286,13 @@ def grade_documents(state: MessagesState) -> Literal["generate_answer", "rewrite
     """Determine whether the retrieved documents are relevant to the question."""
     logger.info("Grading documents for relevance")
     try:
-        if state['messages'][-1].tool_call_id:
+        if state['messages'][-1].name != "retrieve_documents":
+            logger.info(f"{state['messages'][-1].name}")
             return "generate_answer"
         question = state["messages"][0].content
         context = state["messages"][-1].content
-        logger.info(f"Grading context: {context}")
-        logger.info(f"Grading question: {question}")
+        # logger.info(f"Grading question: {question}")
+        # logger.info(f"Grading context: {context}")
         prompt = GRADE_PROMPT.format(question=question, context=context)
         response = grader_model.with_structured_output(GradeDocuments).invoke(
             [{"role": "user", "content": prompt}]
@@ -308,7 +311,7 @@ def rewrite_question(state: MessagesState):
         question = state["messages"][0].content
         prompt = REWRITE_PROMPT.format(question=question)
         response = response_model.invoke([{"role": "user", "content": prompt}])
-        logger.debug(f"Rewritten question: {response.content}")
+        logger.info(f"Rewritten question: {response}")
         return {"messages": [{"role": "user", "content": response.content}]}
     except Exception as e:
         logger.error(f"Error in rewrite_question: {str(e)}")
@@ -321,20 +324,13 @@ def generate_answer(state: MessagesState):
     try:
         question = state["messages"][0].content
         context = state["messages"][-1].content
-        prompt = GENERATE_PROMPT.format(question=question, context=context)
+        if state["messages"][-1].name != "retrieve_documents":
+            prompt = IMPROVE_PROMPT.format(question=question, context=context)
+        else:
+            prompt = GENERATE_PROMPT.format(question=question, context=context)
+
+        # logger.info(f"prompt: {prompt}")
         response = response_model.invoke([{"role": "user", "content": prompt}])
-        if response.tool_calls:
-            for tool_call in response.tool_calls:
-                # Call the actual tool
-                # Return result back to model
-                second_response = response_model.invoke([
-                    HumanMessage(content=prompt),
-                    AIMessage(tool_calls=[tool_call], content=''),
-                    ToolMessage(
-                        tool_call_id=tool_call["id"], content=state["messages"][-1].content)
-                ])
-                logger.info(f"response: {second_response}")
-                return {"messages": [second_response]}
         logger.debug(f"Generated answer: {response.content[:100]}...")
         return {"messages": [response]}
     except Exception as e:
@@ -348,7 +344,7 @@ workflow.add_node(generate_query_or_respond)
 workflow.add_node(rewrite_question)
 workflow.add_node(generate_answer)
 
-workflow.add_edge(START, "generate_query_or_respond")
+workflow.add_edge(START, "rewrite_question")
 # workflow.add_conditional_edges(
 #     "generate_query_or_respond",
 #     tools_condition,
