@@ -142,7 +142,7 @@ const ChatWindow = ({
 
   const getButtonFromElement = (data) => {
     return (
-      <IconButton sx={{ width: "100%", borderTop: "1px solid #e6ebf1" }}>
+      <IconButton sx={{ width: "100%" }}>
         <Stack
           direction={"row"}
           justifyContent={"space-between"}
@@ -165,50 +165,6 @@ const ChatWindow = ({
 
   return (
     <>
-      <Stack
-        direction={"row"}
-        sx={{ borderBottom: "1px solid  #e6ebf1", px: 2, py: "18px", gap: 1 }}
-        alignItems={"center"}
-        justifyContent={"space-between"}
-      >
-        <Stack direction={"row"} sx={{ gap: 1 }}>
-          <Avatar
-            className="user-avatar"
-            src={customer ? customer.avatar : ""}
-            style={{
-              width: "46px",
-              height: "46px",
-            }}
-            alt="Avatar"
-          ></Avatar>
-          <Stack direction={"column"} justifyContent={"flex-start"}>
-            <Typography sx={{ fontWeight: "700", fontSize: 15 }}>
-              {customer?.displayName}
-            </Typography>
-            {customer?.tags.map(
-              (item, index) =>
-                item.trim() && (
-                  <Chip
-                    sx={{ width: "fit-content", height: 25 }}
-                    key={`tags_${index}`}
-                    label={item}
-                  ></Chip>
-                )
-            )}
-          </Stack>
-        </Stack>
-        <IconButton
-          onClick={toggleRightSidebar}
-          sx={{ ":hover": { backgroundColor: "transparent" } }}
-        >
-          <Expand
-            sx={{
-              transform: "rotate(90deg)",
-              color: isRightSidebarOpen && theme.palette.primary.main,
-            }}
-          ></Expand>
-        </IconButton>
-      </Stack>
       <Box
         sx={{
           position: "relative",
@@ -222,11 +178,14 @@ const ChatWindow = ({
         ref={chatRef}
       >
         <Box ref={lastMessageRef}></Box>
-        <Stack sx={{ flex: 1, gap: 2, justifyContent: "flex-end" }}>
+        <Stack
+          sx={{
+            flex: 1,
+            gap: 2,
+            justifyContent: `${messages.length > 0 ? "flex-end" : "center"}`,
+          }}
+        >
           {messages?.map((item, index) => {
-            if (item?.payload?.link_url) {
-              // console.log("item", item);
-            }
             return (
               <>
                 {item?.text && !item?.image && (
@@ -240,6 +199,7 @@ const ChatWindow = ({
                     reaction={item?.reaction}
                     index={index}
                     setReaction={setReaction}
+                    handleScrollToBottom={handleScrollToBottom}
                   >
                     {/* <Stack
                   direction={"row"}
@@ -540,6 +500,15 @@ const ChatWindow = ({
               </>
             );
           })}
+          {messages.length === 0 && (
+            <Stack
+              sx={{
+                fontSize: "32px",
+              }}
+            >
+              <p>Ask me anything about the documents</p>
+            </Stack>
+          )}
         </Stack>
         <Box ref={bottomRef}></Box>
         {haveNewMessageBox && (

@@ -43,7 +43,6 @@ const ChatApp = ({
         display: "flex",
         width: "100vh",
         height: "calc(100vh - 128px)",
-        border: "1px solid #e6ebf1",
       }}
     >
       {/* Left Sidebar */}

@@ -1,0 +1,12 @@
+BE/.env
+BE/__pycache__/socket_rag.cpython-310.pyc
+BE/__pycache__/socket_rag.cpython-312.pyc
+BE/__pycache__/tts.cpython-310.pyc
+BE/__pycache__/tts.cpython-312.pyc
+BE/chroma_db/chroma.sqlite3
+BE/chroma_db/79b35029-d1ec-430d-bb81-c688f9375aac/link_lists.bin
+BE/chroma_db/79b35029-d1ec-430d-bb81-c688f9375aac/length.bin
+BE/chroma_db/79b35029-d1ec-430d-bb81-c688f9375aac/header.bin
+BE/chroma_db/79b35029-d1ec-430d-bb81-c688f9375aac/data_level0.bin
+/BE/chroma_db
+/BE/chroma_db

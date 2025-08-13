@@ -1,5 +1,5 @@
 // src/components/ChatWindow.tsx
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Avatar,
   Box,
@@ -33,124 +33,10 @@ export const StyledStack = styled(Stack)(({ theme }) => ({
   },
 }));
 
-const Reaction = ({
-  reaction,
-  haveReaction,
-  reactionIcons,
-  addReaction,
-  setAddReaction,
-  addReactionRef,
-  type,
-  onChooseEmoji,
-  t,
-  onRemoveEmoji,
-}) => {
-  return (
-    <>
-      {haveReaction && (
-        <Box
-          sx={{
-            position: "absolute",
-            bottom: -8,
-            right: type === "oa_send" && 0,
-            left: type !== "oa_send" && 36,
-            textAlign: "center",
-            border: "1px solid #e6ebf1",
-            borderRadius: "24px",
-            backgroundColor: "#fff",
-            cursor: "pointer",
-            px: 1,
-            pb: "1px",
-          }}
-          onClick={() => setAddReaction(true)}
-        >
-          {[...new Set(sortByFrequencyDesc(reactionIcons))].map(
-            (reaction) =>
-              reactionIcon.find((item) => item.value === reaction).label
-          )}
-          {reaction.length}
-        </Box>
-      )}
-      {!haveReaction && (
-        <Box
-          className="timeStamp"
-          sx={{
-            position: "absolute",
-            bottom: -8,
-            right: type === "oa_send" && 0,
-            left: type !== "oa_send" && 36,
-            width: "24px",
-            height: "24px",
-            textAlign: "center",
-            border: "1px solid #e6ebf1",
-            borderRadius: "99%",
-            backgroundColor: "#fff",
-            display: addReaction ? "block" : "none",
-            cursor: "pointer",
-            pt: "2px",
-          }}
-          onClick={() => setAddReaction(true)}
-        >
-          <SentimentSatisfiedAlt
-            sx={{ width: "18px", height: "18px", cursor: "pointer" }}
-          ></SentimentSatisfiedAlt>
-        </Box>
-      )}
-      <StyledBubble
-        ref={addReactionRef}
-        sx={{
-          display: "flex",
-          flexDirection: "row",
-          position: "absolute",
-          bottom: 16,
-          right: type === "oa_send" && 0,
-          left: type !== "oa_send" && 36,
-          backgroundColor: "#fff",
-          display: addReaction ? "block" : "none",
-          zIndex: 10,
-          cursor: "pointer",
-        }}
-      >
-        {reactionIcon.map((item, index) => (
-          <IconButton
-            onClick={onChooseEmoji}
-            key={`reaction_${index}`}
-            value={item.value}
-            sx={{
-              ":hover": { backgroundColor: "transparent" },
-              color: "#ccc",
-              p: "1px",
-              cursor: "pointer",
-            }}
-          >
-            {item.label}
-          </IconButton>
-        ))}
-        {haveReaction && (
-          <Tooltip title={t("Delete Emoji")}>
-            <IconButton
-              onClick={onRemoveEmoji}
-              sx={{
-                ":hover": { backgroundColor: "transparent" },
-                color: "#ccc",
-                p: "1px",
-                cursor: "pointer",
-              }}
-            >
-              <HighlightOff></HighlightOff>
-            </IconButton>
-          </Tooltip>
-        )}
-      </StyledBubble>
-    </>
-  );
-};
-
 const ChatBubble = ({
   type = "receiver",
   children,
   sendTime,
-  avatar,
   haveImage = false,
   sending = false,
   error = "",
@@ -160,12 +46,15 @@ const ChatBubble = ({
   index,
   width = "fit-content",
   setReaction,
-  noReaction = false,
+  handleScrollToBottom,
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
   const [timeStamp, setTimeStamp] = useState(false);
   const [addReaction, setAddReaction] = useState(false);
+  const fullText = children.props.children;
+  const [messages, setMessages] = useState("");
+  const [messagesIndex, setMessagesIndex] = useState(0);
   const timeoutRef = useRef(null);
   const addReactionRef = useRef(null);
   const buttonReactionRef = useRef(null);
@@ -177,10 +66,6 @@ const ChatBubble = ({
       setTimeStamp(true);
     }, 500);
   };
-
-  const reactionIcons = reaction.map((item) => item.icon);
-
-  const displayReaction = new Set(reaction);
 
   const onRemoveTimeStamp = () => {
     clearTimeout(timeoutRef.current);
@@ -200,36 +85,36 @@ const ChatBubble = ({
     await setReaction(index, "/-remove");
     setAddReaction(false);
   };
+  useEffect(() => {
+    if (type === "server" && messagesIndex < fullText.length) {
+      console.log(fullText.length);
+      setTimeout(() => {
+        console.log(fullText[messagesIndex]);
+        setMessages((prev) => prev + fullText[messagesIndex]);
+        setMessagesIndex(messagesIndex + 1);
+        handleScrollToBottom();
+      }, 20);
+    }
+    return () => clearTimeout();
+  }, [messagesIndex, fullText]);
 
   return (
-    <StyledStack alignItems={type === "oa_send" && "flex-end"} width={"100%"}>
+    <StyledStack alignItems={type === "client" && "flex-end"} width={"100%"}>
       <Stack
         direction={"row"}
         sx={{
           gap: 1,
           opacity: sending ? 0.3 : 1,
           pointerEvents: sending && "none",
-          maxWidth: 350,
           position: "relative",
           paddingBottom: haveReaction && 1,
+          width: "fit-content",
         }}
         alignItems={"flex-end"}
-        justifyContent={type === "oa_send" && "flex-end"}
-        width={"100%"}
+        justifyContent={type === "client" && "flex-end"}
       >
-        {type !== "oa_send" && (
-          <Avatar
-            className="user-avatar"
-            src={avatar || ""}
-            sx={{
-              width: "28px",
-              height: "28px",
-            }}
-            alt="Avatar"
-          ></Avatar>
-        )}
         <StyledStack
-          direction={type !== "oa_send" ? "row" : "row-reverse"}
+          direction={type !== "client" ? "row" : "row-reverse"}
           alignItems={"center"}
           gap={1}
         >
@@ -237,43 +122,28 @@ const ChatBubble = ({
             sx={{
               position: "relative",
               backgroundColor:
-                type === "oa_send"
+                type === "client"
                   ? haveImage
                     ? "transparent"
                     : isTemplate
                     ? "transparent"
                     : theme.palette.primary.main
                   : "none",
-              border: haveImage && "none",
+              border: type !== "client" && "none",
               color:
-                type === "oa_send" ? (isTemplate ? "none" : "#fff") : "none",
+                type === "client" ? (isTemplate ? "none" : "#fff") : "none",
               wordWrap: "break-word",
-              maxWidth: 350,
               overflowWrap: "break-word",
               padding: haveImage || isTemplate ? 0 : "8px 12px",
               overflow: "hidden",
-              width: isHTML ? "350px" : "fit-content",
+              width: type === "client" ? "fit-content" : "100%",
+              whiteSpace: "pre-wrap",
+              textAlign: "start",
             }}
-            onMouseEnter={onShowTimeStamp}
-            onMouseLeave={onRemoveTimeStamp}
           >
-            {children}
+            {type === "server" ? messages.slice(1) : children}
           </StyledBubble>
-          {!noReaction && (
-            <Reaction
-              addReaction={addReaction}
-              addReactionRef={addReactionRef}
-              haveReaction={haveReaction}
-              reaction={reaction}
-              reactionIcons={reactionIcons}
-              setAddReaction={setAddReaction}
-              type={type}
-              onChooseEmoji={onChooseEmoji}
-              t={t}
-              onRemoveEmoji={onRemoveEmoji}
-            ></Reaction>
-          )}
-          <Box sx={{ position: "relative", height: 40 }}>
+          {/* <Box sx={{ position: "relative", height: 40, width: 112 }}>
             {timeStamp && (
               <StyledBubble
                 sx={{
@@ -291,7 +161,7 @@ const ChatBubble = ({
                 {sendTime}
               </StyledBubble>
             )}
-          </Box>
+          </Box> */}
         </StyledStack>
       </Stack>
       {error && (

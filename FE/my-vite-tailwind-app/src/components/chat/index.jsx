@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
-import { io } from "socket.io-client";
 import ChatLayout from "./ChatLayout";
 import apiClient, { fileApiClient } from "@/js/core/ApiClient";
 import { RESPONSE_STATUS_OK } from "@/js/Constant";
@@ -14,7 +13,7 @@ import { useIntersection } from "react-use";
 const ChatApp = () => {
   const { user } = useSelector((state) => state.auth);
   const { oa } = useSelector((state) => state.oa);
-  const [socket, setSocket] = useState(null);
+  const [ws, setWs] = useState(null);
   const [customer, setCustomer] = useState();
   const [oaCustomers, setOaCustomers] = useState([]);
   const [isChatting, setIsChatting] = useState(false);
@@ -197,172 +196,32 @@ const ChatApp = () => {
   const { handleSubmit, reset } = methods;
 
   useEffect(() => {
-    if (!socketRef.current && oa?.id) {
-      socketRef.current = io(getSocketDomain(), {
-        query: { oaId: oa?.id },
-      });
-    }
-
-    const handleReceiveMessage = (data) => {
-      console.log("data received", data);
-      if (socketRef.current && socketRef.current.connected) {
-        // console.log("here1")
-        if (cacheMessages.has(data.hash)) return;
-        // console.log("here2", data, customer);
-        if (data?.customerId !== customer?.zaloOAUserId) return;
-        // console.log("here3")
-        let tmpType = data.sender === "oa" ? "oa_send" : "receiver";
-        if (tmpType === "oa_send") {
-          handleScrollToBottom();
-        } else {
-          !intersection.intersectionRatio && setHaveNewMessageBox(true);
-        }
-        console.log("data message received", data);
-        if (data?.fileUrl) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: data.zaloOaMsgId,
-              text: data.message,
-              type: tmpType,
-              sendTime: convertTimestamp(getToday()),
-              image: {
-                files: {
-                  name: data.fileName,
-                  size: data.fileSize,
-                },
-                url: data.fileUrl,
-              },
-              sending: false,
-              error: "",
-              reaction: [],
-            },
-          ]);
-        } else if (data?.sticker) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: data.zaloOaMsgId,
-              text: data.message,
-              type: tmpType,
-              sendTime: convertTimestamp(getToday()),
-              sticker: data.image,
-              sending: false,
-              error: "",
-              reaction: [],
-            },
-          ]);
-        } else if (data?.image?.files) {
-          const blob = new Blob([data.image.files], { type: data.fileType });
-          const file = new File([blob], data.fileName, { type: blob.type });
-
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: data.zaloOaMsgId,
-              text: data.message,
-              type: tmpType,
-              sendTime: convertTimestamp(getToday()),
-              image: {
-                files: file,
-                url: data.image.url,
-              },
-              sending: false,
-              error: "",
-              reaction: [],
-            },
-          ]);
-        } else if (data?.attachments) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: data.zaloOaMsgId,
-              text: data.message,
-              type: tmpType,
-              sendTime: convertTimestamp(getToday()),
-              image: data.image,
-              attachments: data.attachments,
-              sending: false,
-              error: "",
-              reaction: [],
-            },
-          ]);
-        } else if (data?.payload) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: data.zaloOaMsgId,
-              text: data.message,
-              type: tmpType,
-              sendTime: convertTimestamp(getToday()),
-              payload: data.payload,
-              sending: false,
-              error: "",
-              reaction: [],
-            },
-          ]);
-        } else {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: data.zaloOaMsgId,
-              text: data.message,
-              type: tmpType,
-              sendTime: convertTimestamp(getToday()),
-              image: data.image,
-              sending: false,
-              error: "",
-              reaction: [],
-            },
-          ]);
-        }
-        cacheMessages.add(data.hash);
-      }
+    const socket = new WebSocket("ws://localhost:8765");
+    socket.onopen = () => {
+      console.log("Kết nối thành công WebSocket");
     };
 
-    //a ddi hopj cai ddax e m check data receive nhe, oke anh, anh out em check cho
-    const handleReceiveReaction = (data) => {
-      if (!socketRef.current || !socketRef.current.connected) return;
-
-      const index = messages.findIndex((item) => item.id === data.messageId);
-
-      if (data.reactIcon === "/-remove") {
-        setMessages((prev) => {
-          prev[index] = {
-            ...prev[index],
-            reaction: [
-              ...prev[index].reaction.filter(
-                (item) => item.sender_id !== data?.senderId
-              ),
-            ],
-          };
-          return [...prev];
-        });
-      } else {
-        setMessages((prev) => {
-          prev[index] = {
-            ...prev[index],
-            reaction: [
-              ...prev[index]?.reaction,
-              {
-                sender_id: data.senderId,
-                icon: data.reactIcon,
-              },
-            ],
-          };
-          return [...prev];
-        });
-      }
+    socket.onmessage = (event) => {
+      console.log("Nhận từ server:", event.data);
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: event.data,
+          type: "server",
+          sendTime: convertTimestamp(getToday()),
+        },
+      ]);
+      handleScrollToBottom();
     };
 
-    socketRef.current?.on("receive_message", handleReceiveMessage);
-    socketRef.current?.on("react_message", handleReceiveReaction);
-
-    return () => {
-      socketRef.current?.off("receive_message");
-      socketRef.current?.off("react_message");
+    socket.onclose = () => {
+      console.log("Mất kết nối WebSocket");
     };
-  }, [oa, customer, messages]);
+
+    setWs(socket);
+
+    return () => socket.close();
+  }, []);
 
   // useEffect(() => {
   //   oa && fetchOACustomerListData(true);
@@ -615,58 +474,29 @@ const ChatApp = () => {
     if (input.sticker) {
       return await sendStickerMessage(input);
     }
+    if (!ws) return;
     const data = {
       oaId: oa?.id,
       customerId: customer?.zaloOAUserId,
       message: input.message,
       time: Date.now(),
     };
-    setMessages((prev) => [
-      ...prev,
-      {
-        text: data.message,
-        type: "oa_send",
-        sendTime: convertTimestamp(data.time),
-        image: data.image,
-        sending: true,
-        error: "",
-        reaction: [],
-      },
-    ]);
+    const message = {
+      text: data.message,
+      type: "client",
+      sendTime: convertTimestamp(data.time),
+      image: data.image,
+      sending: false,
+    };
+    ws.send(input.message);
+    setMessages((prev) => [...prev, message]);
     reset();
-    // handleScrollToBottom();
-
-    const response = await apiClient.post("/oas/messages/send-message", data);
-    // console.log("data", data);
-    // console.log("Hello", response);
-    if (response.code !== RESPONSE_STATUS_OK) {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        {
-          text: data.message,
-          type: "oa_send",
-          sendTime: convertTimestamp(data.time),
-          image: data.image,
-          sending: true,
-          error: "Cannot send message",
-          reaction: [],
-        },
-      ]);
-      // handleScrollToBottom();
-    } else {
-      setMessages((prev) => [...prev.slice(0, -1)]);
-      // socketRef.current?.emit("send_message", data);
-    }
+    handleScrollToBottom();
   });
 
   const onChangeInput = (data) => {
     setMessage(data);
   };
-
-  useEffect(() => {
-    if (!lastMessageVisibility) return;
-    fetchCustomerMessageListData(page, true);
-  }, [lastMessageVisibility]);
 
   console.log("intersection", intersection?.intersectionRatio);
 
@@ -696,7 +526,6 @@ const ChatApp = () => {
             handleScrollToBottom={handleScrollToBottom}
             haveNewMessageBox={haveNewMessageBox}
           ></ChatLayout>
-          {/* <BasicBackdrop open={loading} /> */}
         </form>
       </FormProvider>
     </>

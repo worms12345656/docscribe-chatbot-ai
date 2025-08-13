@@ -1,0 +1,10 @@
+REWRITE_PROMPT = (
+    "You are a question expert specialized in clarifying questions from keywords. "
+    "If user question mention any keywords about documents, rewrite the input with more details that can help the question  more relevant to the stored documents"
+    "Here is the initial question:"
+    "\n ------- \n"
+    "{question}"
+    "\n ------- \n"
+    "Formulate an improved question that more relevant to the stored documents:"
+)
+

@@ -1,6 +1,16 @@
 // src/components/MessageInput.tsx
 import React, { useRef, useState } from "react";
-import { Box, TextField, IconButton, Tooltip, Stack, useTheme, Typography, OutlinedInput, Grid } from "@mui/material";
+import {
+  Box,
+  TextField,
+  IconButton,
+  Tooltip,
+  Stack,
+  useTheme,
+  Typography,
+  OutlinedInput,
+  Grid,
+} from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import {
   AttachFile,
@@ -11,7 +21,7 @@ import {
   Search,
   SentimentSatisfied,
   SentimentSatisfiedAlt,
-  UploadFile
+  UploadFile,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import { useFormContext } from "react-hook-form";
@@ -19,10 +29,17 @@ import { convertFileSize } from "@/utils/convert";
 import { SmileFilled } from "@ant-design/icons";
 import { useClickAway } from "react-use";
 
-const MessageInput = ({ sendMessage, onChangeInput, message, sendImagesMessage, sendFilesMessage }) => {
+const MessageInput = ({
+  sendMessage,
+  onChangeInput,
+  message,
+  sendImagesMessage,
+  sendFilesMessage,
+}) => {
   // const [message, setMessage] = useState("");
 
-  const { control, register, setValue, getValues, watch, setFocus } = useFormContext();
+  const { control, register, setValue, getValues, watch, setFocus } =
+    useFormContext();
 
   const { t } = useTranslation();
   const theme = useTheme();
@@ -108,7 +125,7 @@ const MessageInput = ({ sendMessage, onChangeInput, message, sendImagesMessage, 
       const url = URL.createObjectURL(files);
       setValue("filePreview", {
         files: files,
-        url
+        url,
       });
       setValue("imagePreview", "");
       setValue("image", "");
@@ -118,16 +135,6 @@ const MessageInput = ({ sendMessage, onChangeInput, message, sendImagesMessage, 
     }
   };
 
-  const handleStickerChange = async (url) => {
-    setValue("sticker", url);
-    setValue("filePreview", "");
-    setValue("imagePreview", "");
-    setValue("image", "");
-    setFocus("message");
-    setAddSticker(false);
-    await sendMessage();
-  };
-
   // console.log("imagePreviews", imagePreviews);
   // console.log("files", files);
 
@@ -135,27 +142,42 @@ const MessageInput = ({ sendMessage, onChangeInput, message, sendImagesMessage, 
     <Stack
       direction={"column"}
       alignItems={"flex-start"}
-      sx={{ display: "flex", pt: 1, borderTop: "1px solid #ddd", position: "relative" }}
+      sx={{
+        display: "flex",
+        pt: 1,
+        borderTop: "1px solid #ddd",
+        position: "relative",
+      }}
     >
       <Stack direction={"row"} sx={{ pl: 14 }}>
         {watch("imagePreview") && (
           // watch("imagePreview").map((src, index) => (
           <Stack sx={{ position: "relative", bgcolor: "#ccc" }}>
-            <img src={watch("imagePreview") || ""} alt={`Preview`} style={{ width: "50px", height: "50px", objectFit: "contain" }} />
+            <img
+              src={watch("imagePreview") || ""}
+              alt={`Preview`}
+              style={{ width: "50px", height: "50px", objectFit: "contain" }}
+            />
             <IconButton
               sx={{
                 position: "absolute",
                 top: -15,
                 left: "30px",
 
-                ":hover": { backgroundColor: "transparent" }
+                ":hover": { backgroundColor: "transparent" },
               }}
               onClick={() => {
                 setValue("imagePreview", "");
               }}
               type="button"
             >
-              <Cancel sx={{ width: "20px", height: "20px", ":hover": { color: theme.palette.primary.main } }}></Cancel>
+              <Cancel
+                sx={{
+                  width: "20px",
+                  height: "20px",
+                  ":hover": { color: theme.palette.primary.main },
+                }}
+              ></Cancel>
             </IconButton>
           </Stack>
         )}
@@ -208,72 +230,35 @@ const MessageInput = ({ sendMessage, onChangeInput, message, sendImagesMessage, 
       </Stack>
 
       <Stack
-        ref={addStickerRef}
-        sx={{
-          display: "flex",
-          flexDirection: "row",
-          position: "absolute",
-          width: 340,
-          height: 420,
-          bottom: 50,
-          left: 0,
-          border: "1px solid #e6ebf1",
-          borderRadius: "18px",
-          p: 1,
-          backgroundColor: "#fff",
-          display: addSticker ? "block" : "none",
-          zIndex: 10,
-          cursor: "pointer"
-        }}
+        direction={"row"}
+        alignItems={"center"}
+        sx={{ width: "100%", py: 1 }}
       >
-        <Typography sx={{ pb: 1 }}>{t("Sticker")}</Typography>
-        <OutlinedInput
-          sx={{ width: "100%", borderRadius: "50px", height: 24, lineHeight: 12, mb: 1 }}
-          value={stickerFilter}
-          placeholder={t("Sticker find")}
-          startAdornment={<Search sx={{ width: 14, height: 14 }} />}
-          endAdornment={stickerFilter && <Cancel sx={{ cursor: "pointer" }} onClick={() => setStickerFilter("")} />}
-          onChange={(e) => {
-            setStickerFilter(e.target.value);
-          }}
-        />
-        <Grid container sx={{ overflow: "auto", height: 329 }}>
-          {Array.from(Array(100), () => ({
-            url: "https://zalo-api.zadn.vn/api/emoticon/sticker/webpc?eid=46986&size=130"
-          })).map((item, index) => (
-            <Grid item xs={3} onClick={() => handleStickerChange(item.url)}>
-              <img src={item?.url} alt={`Sticker ${index + 1}`} style={{ width: "100%", objectFit: "contain" }} />
-            </Grid>
-          ))}
-        </Grid>
-      </Stack>
+        <input
+          type="file"
+          value={""}
+          style={{ display: "none" }}
+          accept={".jpg,.png,.jfjf,.jpeg"}
+          ref={inputRef}
+          onChange={handleImagesChange}
+        ></input>
+        <input
+          type="file"
+          value={""}
+          style={{ display: "none" }}
+          ref={inputFileRef}
+          onChange={handleFilesChange}
+        ></input>
 
-      <Stack direction={"row"} alignItems={"center"} sx={{ width: "100%", py: 1 }}>
-        <Tooltip title={t("Upload Image")} sx={{ p: 0 }}>
-          <IconButton onClick={inputImages} type="button">
-            <InsertPhoto></InsertPhoto>
-            <input
-              type="file"
-              value={""}
-              style={{ display: "none" }}
-              accept={".jpg,.png,.jfjf,.jpeg"}
-              ref={inputRef}
-              onChange={handleImagesChange}
-            ></input>
-          </IconButton>
-        </Tooltip>
-        <Tooltip title={t("Upload File")} sx={{ p: 0 }}>
-          <IconButton onClick={inputFiles} type="button">
-            <AttachFile></AttachFile>
-            <input type="file" value={""} style={{ display: "none" }} ref={inputFileRef} onChange={handleFilesChange}></input>
-          </IconButton>
-        </Tooltip>
-        <Tooltip title={t("Sticker")} sx={{ p: 0 }}>
-          <IconButton onClick={() => setAddSticker(!addSticker)} type="button">
-            <SentimentSatisfiedAlt></SentimentSatisfiedAlt>
-          </IconButton>
-        </Tooltip>
-        <TextField {...register("message")} fullWidth variant="outlined" placeholder={t("Type a message...")} />
+        <TextField
+          {...register("message")}
+          sx={{
+            borderRadius: "8px",
+          }}
+          fullWidth
+          variant="outlined"
+          placeholder={t("Ask me about document...")}
+        />
         <IconButton color="primary" type="submit">
           <SendIcon />
         </IconButton>
