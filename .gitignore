@@ -10,3 +10,9 @@ BE/chroma_db/79b35029-d1ec-430d-bb81-c688f9375aac/header.bin
 BE/chroma_db/79b35029-d1ec-430d-bb81-c688f9375aac/data_level0.bin
 /BE/chroma_db
 /BE/chroma_db
+BE/chroma_db/chroma.sqlite3
+FE/my-vite-tailwind-app/package-lock.json
+FE/my-vite-tailwind-app/package.json
+FE/my-vite-tailwind-app/src/App.css
+FE/my-vite-tailwind-app/src/index.css
+FE/my-vite-tailwind-app/vite.config.js
