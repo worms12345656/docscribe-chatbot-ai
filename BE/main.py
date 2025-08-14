@@ -1,14 +1,22 @@
 import asyncio
 import websockets
 from socket_rag import handle_user_input
+import json
+import base64
 
 
 async def handler(websocket):
     print("Client đã kết nối!")
     try:
         async for message in websocket:
-            print("Nhận từ client:", message)
-            response = await handle_user_input(message)
+            data = json.loads(message)
+            print("Message:", data["message"])
+            print("Filename:", data["filename"])
+            file_bytes = base64.b64decode(data["fileData"])
+            with open(f"./documents/{data["filename"]}", "wb") as f:
+                f.write(file_bytes)
+            await websocket.send("File and message received!")
+            response = await handle_user_input(data["message"])
             await websocket.send(f"{response}")
     except websockets.exceptions.ConnectionClosed:
         print("Client ngắt kết nối")

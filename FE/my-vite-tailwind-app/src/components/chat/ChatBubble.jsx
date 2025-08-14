@@ -52,7 +52,7 @@ const ChatBubble = ({
   const theme = useTheme();
   const [timeStamp, setTimeStamp] = useState(false);
   const [addReaction, setAddReaction] = useState(false);
-  const fullText = children.props.children;
+  const fullText = children.props ? children.props.children : children;
   const [messages, setMessages] = useState("");
   const [messagesIndex, setMessagesIndex] = useState(0);
   const timeoutRef = useRef(null);
@@ -87,9 +87,7 @@ const ChatBubble = ({
   };
   useEffect(() => {
     if (type === "server" && messagesIndex < fullText.length) {
-      console.log(fullText.length);
       setTimeout(() => {
-        console.log(fullText[messagesIndex]);
         setMessages((prev) => prev + fullText[messagesIndex]);
         setMessagesIndex(messagesIndex + 1);
         handleScrollToBottom();

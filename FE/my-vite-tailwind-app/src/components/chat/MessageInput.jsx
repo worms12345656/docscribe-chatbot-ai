@@ -10,6 +10,7 @@ import {
   Typography,
   OutlinedInput,
   Grid,
+  TextareaAutosize,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import {
@@ -46,6 +47,7 @@ const MessageInput = ({
   const inputRef = useRef(null);
   const inputFileRef = useRef(null);
   const addStickerRef = useRef(null);
+  const textRef = useRef(null);
   const [files, setFiles] = useState();
   const [stickerFilter, setStickerFilter] = useState();
   const [addSticker, setAddSticker] = useState(false);
@@ -135,6 +137,12 @@ const MessageInput = ({
     }
   };
 
+  const handleTextChange = async (event) => {
+    setValue("message", event.target.value);
+    event.target.style.height = "auto";
+    event.target.style.height = `${event.target.scrollHeight}px`;
+  };
+
   // console.log("imagePreviews", imagePreviews);
   // console.log("files", files);
 
@@ -144,13 +152,14 @@ const MessageInput = ({
       alignItems={"flex-start"}
       sx={{
         display: "flex",
-        pt: 1,
-        borderTop: "1px solid #ddd",
         position: "relative",
+        border: "1px solid #ccc",
+        borderRadius: "20px",
       }}
+      e
     >
-      <Stack direction={"row"} sx={{ pl: 14 }}>
-        {watch("imagePreview") && (
+      <Stack direction={"row"} sx={{}}>
+        {/* {watch("imagePreview") && (
           // watch("imagePreview").map((src, index) => (
           <Stack sx={{ position: "relative", bgcolor: "#ccc" }}>
             <img
@@ -180,28 +189,37 @@ const MessageInput = ({
               ></Cancel>
             </IconButton>
           </Stack>
-        )}
+        )} */}
         {/* ))} */}
-        {/* {watch("filePreview") && (
+        {watch("filePreview") && (
           // watch("filePreview").map((item, index) => (
           <Stack
             direction={"row"}
             gap={1}
             alignItems={"center"}
+            justifyContent={"flex-start"}
             sx={{
               wordWrap: "break-word",
               cursor: "pointer",
               border: "1px solid #e6ebf1",
               borderRadius: "8px",
+              ml: "16px",
+              mt: "16px",
               p: 1,
-              width: 120,
+              width: "fit-content",
               height: 50,
-              position: "relative"
+              position: "relative",
             }}
             // onClick={() => onDowloadFile(watch("url"), watch("filePreview")?.name)}
           >
             <Description></Description>
-            <Typography sx={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+            <Typography
+              sx={{
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
+              }}
+            >
               {watch("filePreview")?.files.name}
               <br />
               <Typography component={"span"} sx={{ fontSize: "12px" }}>
@@ -214,7 +232,7 @@ const MessageInput = ({
                 top: -15,
                 left: "100px",
 
-                ":hover": { backgroundColor: "transparent" }
+                ":hover": { backgroundColor: "transparent" },
               }}
               onClick={() => {
                 setValue("filePreview", "");
@@ -222,44 +240,55 @@ const MessageInput = ({
               }}
               type="button"
             >
-              <Cancel sx={{ width: "20px", height: "20px", ":hover": { color: theme.palette.primary.main } }}></Cancel>
+              <Cancel
+                sx={{
+                  width: "20px",
+                  height: "20px",
+                  ":hover": { color: theme.palette.primary.main },
+                }}
+              ></Cancel>
             </IconButton>
           </Stack>
-        )} */}
+        )}
         {/* ))} */}
       </Stack>
 
       <Stack
         direction={"row"}
-        alignItems={"center"}
-        sx={{ width: "100%", py: 1 }}
+        alignItems={"flex-end"}
+        sx={{
+          width: "100%",
+        }}
       >
-        <input
+        {/* <input
           type="file"
           value={""}
           style={{ display: "none" }}
-          accept={".jpg,.png,.jfjf,.jpeg"}
+          accept={".pdf,.txt,.docs"}
           ref={inputRef}
           onChange={handleImagesChange}
-        ></input>
-        <input
+        ></input> */}
+        {/* <input
           type="file"
           value={""}
           style={{ display: "none" }}
           ref={inputFileRef}
           onChange={handleFilesChange}
-        ></input>
+        ></input> */}
 
-        <TextField
+        <textarea
           {...register("message")}
-          sx={{
-            borderRadius: "8px",
-          }}
-          fullWidth
-          variant="outlined"
+          onChange={handleTextChange}
+          rows={1}
+          className=" w-full p-4 pl-[24px] focus:outline-0  resize-none"
           placeholder={t("Ask me about document...")}
         />
-        <IconButton color="primary" type="submit">
+        <IconButton
+          sx={{ padding: "16px" }}
+          className="focus:outline-0 hover:none"
+          color="primary"
+          type="submit"
+        >
           <SendIcon />
         </IconButton>
       </Stack>

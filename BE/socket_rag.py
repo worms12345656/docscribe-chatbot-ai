@@ -302,6 +302,8 @@ def generate_query_or_respond(state: MessagesState):
     """Call the model to generate a response or retrieve information based on the current state."""
     logger.debug("Generating query or response")
     try:
+        # if isinstance(state["messages"][-1], AIMessage):
+        #     return "tools"
         logger.debug(state["messages"])
         response = response_model.invoke(state["messages"])
         logger.debug(f"Generated response: {response.content[:100]}...")
@@ -426,10 +428,10 @@ workflow = StateGraph(MessagesState)
 workflow.add_node(generate_query_or_respond)
 workflow.add_node(rewrite_question)
 workflow.add_node(generate_answer)
-workflow.add_node(rewrite_user_question)
+# workflow.add_node(rewrite_user_question)
 
-workflow.add_edge(START, "rewrite_user_question")
-workflow.add_edge("rewrite_user_question", "generate_query_or_respond")
+workflow.add_edge(START, "generate_query_or_respond")
+# workflow.add_edge("generate_query_or_respond", "generate_query_or_respond")
 # workflow.add_conditional_edges(
 #     "generate_query_or_respond",
 #     tools_condition,

@@ -312,7 +312,7 @@ def rewrite_user_question(state: MessagesState):
             prompt = IMPROVE_PROMPT.format(question=question)
         else:
             prompt = question
-        response = response_model.invoke([{"role": "user", "content": prompt}])
+        response = grader_model.invoke([{"role": "user", "content": prompt}])
         logger.info(f"")
         logger.debug(f"Generated response: {response.content[:100]}...")
         return {"messages": [response]}
