@@ -1,0 +1,9 @@
+1, retriever đang hoạt động chưa đúng ý mong muốn đang mong muốn khi người dùng 
+Nếu người dùng nhập 1 câu vu vơ mà có liên quan tới tài liệu:
+ví dụ: tài liệu ai mà người dùng nhập ai hoặc artifact intelligent thì vẫn có
+thể đưa ra câu trả lời dựa vào doc thay vì trả lời vu vơ lại
+2, upload tài liệu lên cho chatbot đọc
+3, tts
+khi mình yêu cầu tạo text to speech thì bên python phải trả ra được file
+speech từ đấy sẽ gửi file speech lên cho fe hiển thị
+4, tạo thêm tavily sreach trong trường hợp không tìm thấy tài liệu 
