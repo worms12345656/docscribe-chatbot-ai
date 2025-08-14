@@ -16,3 +16,4 @@ FE/my-vite-tailwind-app/package.json
 FE/my-vite-tailwind-app/src/App.css
 FE/my-vite-tailwind-app/src/index.css
 FE/my-vite-tailwind-app/vite.config.js
+BE/chroma_db/chroma.sqlite3
