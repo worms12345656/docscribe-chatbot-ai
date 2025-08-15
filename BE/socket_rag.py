@@ -88,7 +88,7 @@ embedding_client = OpenAIEmbeddings(
         "OPENAI_API_BASE", "https://api.openai.com/v1"),
     model=os.environ.get("EMBEDDING_MODEL", "text-embedding-ada-002"),
     api_key=os.environ.get(
-        "EMBEDDING_KEY", os.environ.get("OPENAI_API_KEY"))
+        "EMBEDDING_KEY", os.environ.get("EMBEDDING_KEY"))
 )
 
 # Load and process documents from directory
@@ -211,6 +211,25 @@ def tts(text):
 
 
 @tool
+def load_files(file_name):
+    """Loading file with provided file name and stỏe it in vectorDB"""
+    documents = load_pdf(f"./documents/{file_name}")
+    doc_splits = text_splitter.split_documents(documents)
+    existing_docs = vectorstore.get()
+    existing_names = {doc["document_name"]
+                      for doc in existing_docs["metadatas"] if doc.get("document_name")}
+    new_docs = [
+        doc for doc in doc_splits if doc.metadata["document_name"] not in existing_names]
+    if new_docs:
+        logger.debug("Adding new documents to ChromaDB")
+        vectorstore.add_documents(new_docs)
+        vectorstore.persist()
+        return "Your file have been successfully saved "
+    else:
+        return "Your file have been stored in our database"
+
+
+@tool
 # Set input format to string
 def palindrome_checker(text: str) -> str:
     """Check if a word or phrase is a palindrome."""
@@ -226,13 +245,13 @@ def palindrome_checker(text: str) -> str:
         return f"The phrase or word '{text}' is not a palindrome."
 
 
-tools = [tts, retriever_tool]
+tools = [tts, load_files, retriever_tool]
 tool_lookup = {tool.name: tool for tool in tools}
 
 
 # Initialize the response model
 response_model = ChatOpenAI(
-    model="GPT-4o-mini",
+    model="GPT-4o",
     temperature=0.7,
     timeout=None,
     max_retries=2,
@@ -272,6 +291,7 @@ GENERATE_PROMPT = (
 IMPROVE_PROMPT = (
     "You are an assistant for make response better "
     "Use the following response context of system and return a better response base on user question"
+    "Return the improve the system response only."
     "Question: {question} \n"
     "Context: {context}"
 )
@@ -287,7 +307,7 @@ class GradeDocuments(BaseModel):
 
 
 grader_model = ChatOpenAI(
-    model="GPT-4o-mini",
+    model="GPT-4o",
     temperature=0.7,
     timeout=None,
     max_retries=2,

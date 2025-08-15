@@ -437,11 +437,12 @@ const ChatApp = () => {
   // };
 
   const sendMessage = handleSubmit(async (input) => {
-    const files = input.filePreview.files;
+    const files = input.filePreview ? input.filePreview.files : null;
     if (!ws) return;
     const data = {
       message: input.message,
-      file: files,
+      filename: files,
+      fileData: files ? files.name : null,
     };
 
     const message = {
@@ -451,18 +452,24 @@ const ChatApp = () => {
       image: input.filePreview,
       sending: false,
     };
-    const reader = new FileReader();
-    reader.onload = () => {
-      console.log(files);
-      const base64Data = reader.result.split(",")[1];
-      const payload = {
-        message: input.message,
-        filename: files.name,
-        fileData: base64Data,
+
+    if (files) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        console.log(files);
+        const base64Data = reader.result.split(",")[1];
+        const payload = {
+          message: input.message,
+          filename: files.name,
+          fileData: base64Data,
+        };
+        ws.send(JSON.stringify(payload));
       };
-      ws.send(JSON.stringify(payload));
-    };
-    reader.readAsDataURL(files);
+      reader.readAsDataURL(files);
+    } else {
+      ws.send(JSON.stringify(data));
+    }
+
     setMessages((prev) => [...prev, message]);
     reset();
     setIsThinking(true);

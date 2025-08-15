@@ -207,6 +207,7 @@ const MessageInput = ({
               mt: "16px",
               p: 1,
               width: "fit-content",
+              maxWidth: 120,
               height: 50,
               position: "relative",
             }}
@@ -283,12 +284,7 @@ const MessageInput = ({
           className=" w-full p-4 pl-[24px] focus:outline-0  resize-none"
           placeholder={t("Ask me about document...")}
         />
-        <IconButton
-          sx={{ padding: "16px" }}
-          className="focus:outline-0 hover:none"
-          color="primary"
-          type="submit"
-        >
+        <IconButton sx={{ padding: "16px" }} color="primary" type="submit">
           <SendIcon />
         </IconButton>
       </Stack>
