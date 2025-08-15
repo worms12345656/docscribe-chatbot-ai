@@ -1,5 +1,5 @@
 // src/components/MessageInput.tsx
-import React, { useRef, useState } from "react";
+import React, { EventHandler, useRef, useState } from "react";
 import {
   Box,
   TextField,
@@ -44,9 +44,10 @@ const MessageInput = ({
 
   const { t } = useTranslation();
   const theme = useTheme();
-  const inputRef = useRef(null);
+  const inputRef = useRef < HTMLDivElement > null;
   const inputFileRef = useRef(null);
   const addStickerRef = useRef(null);
+  const submitRef = useRef(null);
   const textRef = useRef(null);
   const [files, setFiles] = useState();
   const [stickerFilter, setStickerFilter] = useState();
@@ -143,6 +144,17 @@ const MessageInput = ({
     event.target.style.height = `${event.target.scrollHeight}px`;
   };
 
+  const handleEnterKey = async (event) => {
+    console.log(event.key);
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.stopPropagation();
+      submitRef.current.click();
+      event.target.style.height = "auto";
+      event.target.style.scrollHeight = `56px`;
+    }
+  };
+
   // console.log("imagePreviews", imagePreviews);
   // console.log("files", files);
 
@@ -156,7 +168,6 @@ const MessageInput = ({
         border: "1px solid #ccc",
         borderRadius: "20px",
       }}
-      e
     >
       <Stack direction={"row"} sx={{}}>
         {/* {watch("imagePreview") && (
@@ -279,12 +290,27 @@ const MessageInput = ({
 
         <textarea
           {...register("message")}
+          ref={(el) => {
+            register("message").ref(el);
+            textRef.current = el;
+          }}
           onChange={handleTextChange}
           rows={1}
           className=" w-full p-4 pl-[24px] focus:outline-0  resize-none"
           placeholder={t("Ask me about document...")}
+          onKeyDown={handleEnterKey}
         />
-        <IconButton sx={{ padding: "16px" }} color="primary" type="submit">
+        <IconButton
+          sx={{ padding: "16px" }}
+          color="primary"
+          type="submit"
+          ref={submitRef}
+          onClick={() => {
+            textRef;
+            textRef.current.style.height = "auto";
+            textRef.current.style.scrollHeight = `56px`;
+          }}
+        >
           <SendIcon />
         </IconButton>
       </Stack>

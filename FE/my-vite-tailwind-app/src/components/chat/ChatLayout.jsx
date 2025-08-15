@@ -3,10 +3,11 @@ import { useSelector } from "react-redux";
 import { io } from "socket.io-client";
 import { getSocketDomain } from "@/js/core/Domain";
 import { getCookie } from "@/js/core/Cookie";
-import { Box, Drawer, IconButton, Stack } from "@mui/material";
+import { Box, Divider, Drawer, IconButton, Stack } from "@mui/material";
 import ChatWindow from "./ChatWindow";
 import MessageInput from "./MessageInput";
 import { useFormContext } from "react-hook-form";
+import { LineOutlined } from "@ant-design/icons";
 
 const ChatApp = ({
   sendMessage,
@@ -25,6 +26,7 @@ const ChatApp = ({
   setReaction,
   haveNewMessageBox,
   isThinking,
+  storedFiles,
 }) => {
   const inputFileRef = useRef(null);
   const [isDragFile, setIsDragFile] = useState(false);
@@ -94,6 +96,7 @@ const ChatApp = ({
   //     setFocus("message");
   //   }
   // };
+  console.log("data.files", storedFiles);
 
   return (
     <Box
@@ -107,6 +110,18 @@ const ChatApp = ({
       {/* <Sidebar oaCustomers={oaCustomers} onChangeCustomer={onChangeCustomer} customer={customer} /> */}
 
       {/* Main Chat Section */}
+      <Box sx={{ borderRight: "1px solid #ccc", pr: "1rem", width: 200 }}>
+        <img src="./logo.png" width={200} height={200}></img>
+        <Divider></Divider>
+        <h2 className="font-bold py-2">Stored Documents</h2>
+        {storedFiles &&
+          storedFiles.map((item) => (
+            <>
+              <p className="text-start">{item}</p>
+              <LineOutlined></LineOutlined>
+            </>
+          ))}
+      </Box>
       <Box
         sx={{
           display: "flex",
@@ -137,6 +152,7 @@ const ChatApp = ({
           sendFilesMessage={sendFilesMessage}
         />
       </Box>
+
       {isDragFile && (
         <Stack
           sx={{

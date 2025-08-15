@@ -518,7 +518,6 @@ const ChatWindow = ({
                 alignItems: "center",
               }}
             >
-              <img src="./logo.png" width={300} height={300}></img>
               <p>Your Personal Documents Scribe</p>
             </Stack>
           )}

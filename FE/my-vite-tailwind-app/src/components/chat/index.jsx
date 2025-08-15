@@ -21,6 +21,7 @@ const ChatApp = () => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(2);
+  const [storedFiles, setStoredFiles] = useState([]);
   const [haveNewMessageBox, setHaveNewMessageBox] = useState(false);
   const socketRef = useRef(null);
   const bottomRef = useRef(null);
@@ -199,6 +200,15 @@ const ChatApp = () => {
   });
   const { handleSubmit, reset, setValue } = methods;
 
+  function isJSON(str) {
+    try {
+      JSON.parse(str);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   useEffect(() => {
     const socket = new WebSocket("ws://localhost:8765");
     socket.onopen = () => {
@@ -208,6 +218,10 @@ const ChatApp = () => {
     socket.onmessage = (event) => {
       console.log("Nhận từ server:", event.data);
       setIsThinking(false);
+      if (isJSON(event.data)) {
+        return setStoredFiles(JSON.parse(event.data).files);
+      }
+
       setMessages((prev) => [
         ...prev,
         {
@@ -365,6 +379,7 @@ const ChatApp = () => {
         file: files,
       });
       reset();
+
       handleScrollToBottom();
       setMessages((prev) => [...prev.slice(0, -1)]);
       ws.send(input.message);
@@ -438,6 +453,7 @@ const ChatApp = () => {
 
   const sendMessage = handleSubmit(async (input) => {
     const files = input.filePreview ? input.filePreview.files : null;
+    console.log(input.message);
     if (!ws) return;
     const data = {
       message: input.message,
@@ -459,7 +475,7 @@ const ChatApp = () => {
         console.log(files);
         const base64Data = reader.result.split(",")[1];
         const payload = {
-          message: input.message,
+          message: input.message || "No Question",
           filename: files.name,
           fileData: base64Data,
         };
@@ -472,6 +488,7 @@ const ChatApp = () => {
 
     setMessages((prev) => [...prev, message]);
     reset();
+    setValue("message", "");
     setIsThinking(true);
     handleScrollToBottom();
   });
@@ -508,6 +525,7 @@ const ChatApp = () => {
             handleScrollToBottom={handleScrollToBottom}
             haveNewMessageBox={haveNewMessageBox}
             isThinking={isThinking}
+            storedFiles={storedFiles}
           ></ChatLayout>
         </form>
       </FormProvider>
