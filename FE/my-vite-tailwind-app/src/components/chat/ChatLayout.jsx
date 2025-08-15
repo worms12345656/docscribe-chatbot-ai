@@ -23,6 +23,8 @@ const ChatApp = ({
   chatRef,
   setReaction,
   haveNewMessageBox,
+  onVoiceMessage,
+  isConnected,
 }) => {
   const { user } = useSelector((state) => state.auth);
   const { oa } = useSelector((state) => state.oa);
@@ -76,6 +78,8 @@ const ChatApp = ({
           onChangeInput={onChangeInput}
           sendImagesMessage={sendImagesMessage}
           sendFilesMessage={sendFilesMessage}
+          onVoiceMessage={onVoiceMessage}
+          isConnected={isConnected}
         />
       </Box>
 

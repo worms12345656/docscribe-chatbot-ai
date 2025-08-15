@@ -196,26 +196,69 @@ const ChatApp = () => {
   const { handleSubmit, reset } = methods;
 
   useEffect(() => {
-    const socket = new WebSocket("ws://localhost:8765");
+    // Connect to voice-enhanced WebSocket server
+    const socket = new WebSocket("ws://localhost:8766");
+    
     socket.onopen = () => {
-      console.log("Kết nối thành công WebSocket");
+      console.log("🎤 Connected to voice-enhanced WebSocket server");
     };
 
     socket.onmessage = (event) => {
-      console.log("Nhận từ server:", event.data);
-      setMessages((prev) => [
-        ...prev,
-        {
-          text: event.data,
-          type: "server",
-          sendTime: convertTimestamp(getToday()),
-        },
-      ]);
+      console.log("📨 Received from server:", event.data);
+      
+      try {
+        // Try to parse as JSON for structured responses
+        const data = JSON.parse(event.data);
+        
+        if (data.type === "response") {
+          let messageText = data.response;
+          
+          // Add transcription info for voice responses
+          if (data.input_type === "voice") {
+            messageText = `🎤 [Voice Input] ${data.transcription}\n\n${data.response}`;
+          }
+          
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: messageText,
+              type: "server",
+              sendTime: convertTimestamp(getToday()),
+              isVoiceResponse: data.input_type === "voice",
+            },
+          ]);
+        } else {
+          // Handle plain text responses (backward compatibility)
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: event.data,
+              type: "server",
+              sendTime: convertTimestamp(getToday()),
+            },
+          ]);
+        }
+      } catch (error) {
+        // Handle plain text responses
+        setMessages((prev) => [
+          ...prev,
+          {
+            text: event.data,
+            type: "server",
+            sendTime: convertTimestamp(getToday()),
+          },
+        ]);
+      }
+      
       handleScrollToBottom();
     };
 
     socket.onclose = () => {
-      console.log("Mất kết nối WebSocket");
+      console.log("🔌 Disconnected from WebSocket server");
+    };
+
+    socket.onerror = (error) => {
+      console.error("❌ WebSocket error:", error);
     };
 
     setWs(socket);
@@ -464,6 +507,50 @@ const ChatApp = () => {
   //   }
   // };
 
+  // Handle voice messages
+  const handleVoiceMessage = (audioData) => {
+    if (!ws) {
+      console.error("WebSocket not connected");
+      return;
+    }
+
+    // Add voice message to chat
+    const voiceMessage = {
+      text: "🎤 Recording voice message...",
+      type: "client",
+      sendTime: convertTimestamp(Date.now()),
+      isVoiceMessage: true,
+      sending: true,
+    };
+    
+    setMessages((prev) => [...prev, voiceMessage]);
+    handleScrollToBottom();
+
+    // Send voice data to server
+    const message = {
+      type: "voice",
+      content: audioData,
+    };
+
+    try {
+      ws.send(JSON.stringify(message));
+      console.log("🎤 Voice message sent to server");
+    } catch (error) {
+      console.error("Error sending voice message:", error);
+      
+      // Update message with error
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        {
+          ...voiceMessage,
+          text: "❌ Failed to send voice message",
+          sending: false,
+          error: true,
+        },
+      ]);
+    }
+  };
+
   const sendMessage = handleSubmit(async (input) => {
     if (input.image) {
       return await sendImagesMessage(input);
@@ -475,12 +562,14 @@ const ChatApp = () => {
       return await sendStickerMessage(input);
     }
     if (!ws) return;
+    
     const data = {
       oaId: oa?.id,
       customerId: customer?.zaloOAUserId,
       message: input.message,
       time: Date.now(),
     };
+    
     const message = {
       text: data.message,
       type: "client",
@@ -488,10 +577,21 @@ const ChatApp = () => {
       image: data.image,
       sending: false,
     };
-    ws.send(input.message);
-    setMessages((prev) => [...prev, message]);
-    reset();
-    handleScrollToBottom();
+
+    // Send as structured message for voice-enhanced server
+    const structuredMessage = {
+      type: "text",
+      content: input.message,
+    };
+
+    try {
+      ws.send(JSON.stringify(structuredMessage));
+      setMessages((prev) => [...prev, message]);
+      reset();
+      handleScrollToBottom();
+    } catch (error) {
+      console.error("Error sending text message:", error);
+    }
   });
 
   const onChangeInput = (data) => {
@@ -525,6 +625,8 @@ const ChatApp = () => {
             setReaction={setReaction}
             handleScrollToBottom={handleScrollToBottom}
             haveNewMessageBox={haveNewMessageBox}
+            onVoiceMessage={handleVoiceMessage}
+            isConnected={!!ws}
           ></ChatLayout>
         </form>
       </FormProvider>

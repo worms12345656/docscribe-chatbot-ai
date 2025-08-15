@@ -10,6 +10,7 @@ import {
   Typography,
   OutlinedInput,
   Grid,
+  Chip,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import {
@@ -28,6 +29,7 @@ import { useFormContext } from "react-hook-form";
 import { convertFileSize } from "@/utils/convert";
 import { SmileFilled } from "@ant-design/icons";
 import { useClickAway } from "react-use";
+import VoiceInput from "./VoiceInput";
 
 const MessageInput = ({
   sendMessage,
@@ -35,6 +37,8 @@ const MessageInput = ({
   message,
   sendImagesMessage,
   sendFilesMessage,
+  onVoiceMessage,
+  isConnected = true,
 }) => {
   // const [message, setMessage] = useState("");
 
@@ -249,6 +253,13 @@ const MessageInput = ({
           ref={inputFileRef}
           onChange={handleFilesChange}
         ></input>
+
+        {/* Voice Input Component */}
+        <VoiceInput 
+          onVoiceMessage={onVoiceMessage}
+          isConnected={isConnected}
+          disabled={false}
+        />
 
         <TextField
           {...register("message")}
