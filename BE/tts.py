@@ -3,6 +3,8 @@ import torch
 from IPython.display import Audio
 import soundfile as sf
 import numpy as np
+import datetime
+import os
 
 
 # Step 3: Clone and load the pre-trained TTS model from Hugging Face
@@ -17,14 +19,36 @@ tokenizer = AutoTokenizer.from_pretrained("facebook/mms-tts-eng")
 
 
 def text_to_speech(text):
-    inputs = tokenizer(text, return_tensors="pt")
-    with torch.no_grad():
-        output = model(**inputs).waveform
-        Audio(output.numpy(), rate=model.config.sampling_rate)
-        audio_data = output.numpy()
-        audio_data = np.squeeze(audio_data)
-        sf.write('output.wav', audio_data.T if audio_data.ndim > 1 else audio_data,
-                 model.config.sampling_rate)
+    try:
+        # Generate unique filename with timestamp
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        filename = f"tts_{timestamp}.wav"
+        
+        # Create audio_files directory if it doesn't exist
+        audio_dir = "audio_files"
+        if not os.path.exists(audio_dir):
+            os.makedirs(audio_dir)
+        
+        filepath = os.path.join(audio_dir, filename)
+        
+        # Tokenize the input text
+        inputs = tokenizer(text, return_tensors="pt")
+        
+        # Generate audio
+        with torch.no_grad():
+            output = model(**inputs).waveform
+            audio_data = output.numpy()
+            audio_data = np.squeeze(audio_data)
+            sf.write(filepath, audio_data.T if audio_data.ndim > 1 else audio_data,
+                     model.config.sampling_rate)
+        
+        return filename
+        
+    except Exception as e:
+        print(f"Error in text_to_speech: {e}")
+        raise e
 
 
-text_to_speech("bonjour")
+# Test the function if run directly
+if __name__ == "__main__":
+    text_to_speech("bonjour")

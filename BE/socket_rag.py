@@ -8,6 +8,8 @@ from langchain_community.vectorstores import Chroma
 from langgraph.checkpoint.memory import InMemorySaver
 from typing import Literal
 import os
+import base64
+import json
 from langchain_tavily import TavilySearch
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -206,9 +208,45 @@ IMPROVE_PROMPT = (
 @tool
 def tts(text):
     """Generate speech file form your input text"""
-    text_to_speech(text)
-    logger.debug(f"Done generating")
-    return "Your speech is ready to use"
+    try:
+        # Generate the audio file
+        filename = text_to_speech(text)
+        logger.debug(f"Done generating audio file: {filename}")
+        
+        # Read the generated audio file and convert to base64
+        audio_file_path = os.path.join("audio_files", filename)
+        
+        if not os.path.exists(audio_file_path):
+            error_result = {
+                "status": "error",
+                "message": "Audio file was not generated successfully",
+                "filename": filename
+            }
+            return json.dumps(error_result)
+        
+        with open(audio_file_path, "rb") as audio_file:
+            audio_data = audio_file.read()
+            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+        
+        # Return JSON with audio data
+        result = {
+            "status": "success",
+            "message": "Audio generated successfully",
+            "filename": filename,
+            "audio_base64": audio_base64,
+            "file_size": len(audio_data)
+        }
+        
+        return json.dumps(result)
+        
+    except Exception as e:
+        logger.error(f"Error in TTS processing: {e}")
+        error_result = {
+            "status": "error",
+            "message": f"Error processing TTS request: {str(e)}",
+            "filename": None
+        }
+        return json.dumps(error_result)
 
 
 tavily_search_tool = TavilySearch(

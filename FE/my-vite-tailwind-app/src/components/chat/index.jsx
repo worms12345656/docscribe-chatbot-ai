@@ -219,7 +219,24 @@ const ChatApp = () => {
       console.log("Nhận từ server:", event.data);
       setIsThinking(false);
       if (isJSON(event.data)) {
-        return setStoredFiles(JSON.parse(event.data).files);
+        const data = JSON.parse(event.data);
+        if (data.files) {
+          return setStoredFiles(data.files);
+        }
+        if (data.audio) {
+          // Handle audio response
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: data.text,
+              type: "server",
+              sendTime: convertTimestamp(getToday()),
+              audio: data.audio,
+            },
+          ]);
+          handleScrollToBottom();
+          return;
+        }
       }
 
       setMessages((prev) => [

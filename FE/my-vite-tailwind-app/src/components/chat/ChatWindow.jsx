@@ -202,6 +202,7 @@ const ChatWindow = ({
                     index={index}
                     setReaction={setReaction}
                     handleScrollToBottom={handleScrollToBottom}
+                    audio={item?.audio}
                   >
                     {/* <Stack
                   direction={"row"}

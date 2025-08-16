@@ -4,6 +4,9 @@ from socket_rag import handle_user_input
 import json
 import base64
 import os
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+import threading
+import re
 
 SEND_FILE_PROMPT = (
     "Save the file with name in folder documents for me.\n"
@@ -16,6 +19,22 @@ SEND_FILE_WITH_MESSAGE_PROMPT = (
     "Question: {question}"
 )
 
+# Start HTTP server for serving audio files
+def start_http_server():
+    class AudioHandler(SimpleHTTPRequestHandler):
+        def end_headers(self):
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            super().end_headers()
+    
+    server = HTTPServer(('localhost', 8000), AudioHandler)
+    print("HTTP server running at http://localhost:8000")
+    server.serve_forever()
+
+# Start HTTP server in a separate thread
+http_thread = threading.Thread(target=start_http_server, daemon=True)
+http_thread.start()
 
 async def handler(websocket):
     print("Client đã kết nối!")
@@ -36,6 +55,43 @@ async def handler(websocket):
                 extension = os.path.splitext(filename)[1]
             if not data["fileData"]:
                 response = await handle_user_input(data["message"])
+                
+                # Check if response contains audio file information (JSON format)
+                try:
+                    # Try to parse as JSON first
+                    response_json = json.loads(response)
+                    if "audio_base64" in response_json:
+                        # This is a TTS response with base64 audio
+                        response_data = {
+                            "text": response,
+                            "audio": {
+                                "filename": response_json.get("filename", ""),
+                                "audio_base64": response_json.get("audio_base64", ""),
+                                "file_size": response_json.get("file_size", 0),
+                                "status": response_json.get("status", "success")
+                            }
+                        }
+                        await websocket.send(json.dumps(response_data))
+                        return
+                except json.JSONDecodeError:
+                    # Not JSON, check for old format
+                    audio_match = re.search(r'File: (tts_\d{8}_\d{6}_\d{3}\.wav)', response)
+                    if audio_match:
+                        audio_filename = audio_match.group(1)
+                        audio_url = f"http://localhost:8000/audio_files/{audio_filename}"
+                        
+                        # Send both text response and audio information
+                        response_data = {
+                            "text": response,
+                            "audio": {
+                                "filename": audio_filename,
+                                "url": audio_url
+                            }
+                        }
+                        await websocket.send(json.dumps(response_data))
+                        return
+                
+                # No audio found, send regular response
                 await websocket.send(f"{response}")
             else:
                 if extension and extension.lower() in [".pdf", ".txt"]:
@@ -50,6 +106,43 @@ async def handler(websocket):
                             filename=filename,
                             question=user_message)
                     response = await handle_user_input(prompt)
+                    
+                    # Check if response contains audio file information (JSON format)
+                    try:
+                        # Try to parse as JSON first
+                        response_json = json.loads(response)
+                        if "audio_base64" in response_json:
+                            # This is a TTS response with base64 audio
+                            response_data = {
+                                "text": response,
+                                "audio": {
+                                    "filename": response_json.get("filename", ""),
+                                    "audio_base64": response_json.get("audio_base64", ""),
+                                    "file_size": response_json.get("file_size", 0),
+                                    "status": response_json.get("status", "success")
+                                }
+                            }
+                            await websocket.send(json.dumps(response_data))
+                            return
+                    except json.JSONDecodeError:
+                        # Not JSON, check for old format
+                        audio_match = re.search(r'File: (tts_\d{8}_\d{6}_\d{3}\.wav)', response)
+                        if audio_match:
+                            audio_filename = audio_match.group(1)
+                            audio_url = f"http://localhost:8000/audio_files/{audio_filename}"
+                            
+                            # Send both text response and audio information
+                            response_data = {
+                                "text": response,
+                                "audio": {
+                                    "filename": audio_filename,
+                                    "url": audio_url
+                                }
+                            }
+                            await websocket.send(json.dumps(response_data))
+                            return
+                    
+                    # No audio found, send regular response
                     await websocket.send(f"{response}")
 
     except websockets.exceptions.ConnectionClosed:

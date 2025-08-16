@@ -15,6 +15,8 @@ import {
   HighlightOff,
   SentimentSatisfiedAlt,
   Warning,
+  PlayArrow,
+  Pause,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import { useClickAway } from "react-use";
@@ -47,6 +49,7 @@ const ChatBubble = ({
   width = "fit-content",
   setReaction,
   handleScrollToBottom,
+  audio = null,
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -144,6 +147,31 @@ const ChatBubble = ({
             {type === "server"
               ? messages.slice(1).replace("Improved Response: ", "")
               : children}
+            
+            {/* Audio player for TTS responses */}
+            {audio && (
+              <Box sx={{ mt: 2, width: "100%" }}>
+                <Typography variant="body2" sx={{ mb: 1, color: "#666" }}>
+                  🔊 Audio Response:
+                </Typography>
+                <audio controls style={{ width: "100%", maxWidth: "300px" }}>
+                  {audio.audio_base64 ? (
+                    <source src={`data:audio/wav;base64,${audio.audio_base64}`} type="audio/wav" />
+                  ) : audio.url ? (
+                    <source src={audio.url} type="audio/wav" />
+                  ) : null}
+                  Your browser does not support the audio element.
+                </audio>
+                <Typography variant="caption" sx={{ display: "block", mt: 1, color: "#999" }}>
+                  {audio.filename} {audio.file_size && `(${Math.round(audio.file_size / 1024)}KB)`}
+                </Typography>
+                {audio.status === "error" && (
+                  <Typography variant="caption" sx={{ display: "block", mt: 1, color: "#f44336" }}>
+                    Error: {audio.message}
+                  </Typography>
+                )}
+              </Box>
+            )}
           </StyledBubble>
           {/* <Box sx={{ position: "relative", height: 40, width: 112 }}>
             {timeStamp && (
