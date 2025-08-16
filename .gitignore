@@ -21,3 +21,4 @@ BE/chroma_db/chroma.sqlite3
 BE/.env
 BE/.env
 BE/chroma_db/chroma.sqlite3
+/BE/chroma_db
