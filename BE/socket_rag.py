@@ -232,42 +232,6 @@ def save_files(file_name):
         documents = load_txt(f"./documents/{file_name}")
     doc_splits = text_splitter.split_documents(documents)
     existing_docs = vectorstore.get()
-    print(existing_docs)
-    existing_names = {doc["document_name"]
-                      for doc in existing_docs["metadatas"] if doc.get("document_name")}
-    new_docs = [
-        doc for doc in doc_splits if doc.metadata["document_name"] not in existing_names]
-    if new_docs:
-        logger.info("Adding new documents to ChromaDB")
-        vectorstore.add_documents(new_docs)
-        vectorstore.persist()
-        return "Your file have been successfully add to memory"
-    else:
-        logger.info("File already stored in ChromaDB")
-        return "Your file have been already stored in our database"
-
-
-tavily_search_tool = TavilySearch(
-    api_key=os.getenv('TAVILY_API_KEY'),
-    max_results=1,
-    topic="general",
-)
-
-
-@tool
-def save_files(file_name):
-    """Save the file name user request into vectorDB"""
-    extension = os.path.splitext(file_name)[1]
-    if not extension:
-        return "This is not a file. Cannot save it"
-    if extension != '.pdf' and extension != '.txt':
-        return "Only accept pdf or txt file"
-    if extension == '.pdf':
-        documents = load_pdf(f"./documents/{file_name}")
-    if extension == '.txt':
-        documents = load_txt(f"./documents/{file_name}")
-    doc_splits = text_splitter.split_documents(documents)
-    existing_docs = vectorstore.get()
     existing_names = {doc["document_name"]
                       for doc in existing_docs["metadatas"] if doc.get("document_name")}
     new_docs = [
@@ -383,7 +347,7 @@ grader_model = ChatOpenAI(
 
 def generate_query_or_respond(state: MessagesState):
     """Call the model to generate a response or retrieve information based on the current state."""
-    logger.debug("Generating query or response")
+    logger.info("Generating query or response")
     try:
         if isinstance(state["messages"][-1], AIMessage):
             return "tools"
@@ -444,10 +408,13 @@ def grade_documents(state: MessagesState) -> Literal["generate_answer", "rewrite
 
 def rewrite_question(state: MessagesState):
     """Rewrite the original user question."""
-    logger.debug("Rewriting question")
+    logger.info("Rewriting question")
     try:
-        question = state["messages"][0].content
-        prompt = REWRITE_PROMPT.format(question=question)
+        messages = state["messages"]
+        human_messages = [m for m in messages if isinstance(m, HumanMessage)]
+        last_human_message = human_messages[-1] if human_messages else None
+        prompt = REWRITE_PROMPT.format(question=last_human_message)
+        logger.info(last_human_message)
         response = response_model.invoke([{"role": "user", "content": prompt}])
         logger.debug(f"Rewritten question: {response.content}")
         return {"messages": [{"role": "user", "content": response.content}]}
@@ -458,7 +425,7 @@ def rewrite_question(state: MessagesState):
 
 def generate_answer(state: MessagesState):
     """Generate an answer based on retrieved context."""
-    logger.debug("Generating answer")
+    logger.info("Generating answer")
     try:
         messages = state["messages"]
         human_messages = [m for m in messages if isinstance(m, HumanMessage)]

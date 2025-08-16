@@ -8,6 +8,7 @@ import ChatWindow from "./ChatWindow";
 import MessageInput from "./MessageInput";
 import { useFormContext } from "react-hook-form";
 import { LineOutlined } from "@ant-design/icons";
+import { flexDirection } from "@mui/system";
 
 const ChatApp = ({
   sendMessage,
@@ -39,7 +40,6 @@ const ChatApp = ({
     const handleDrop = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      console.log("ưe");
       // const droppedFiles = Array.from(e.dataTransfer.files);
       const files = e.dataTransfer.files[0];
       const url = URL.createObjectURL(files);
@@ -51,14 +51,12 @@ const ChatApp = ({
     };
 
     const handleDragEnter = (e) => {
-      console.log("enter");
       e.preventDefault();
       e.stopPropagation();
       setIsDragFile(true);
     };
 
     const handleDragOver = (e) => {
-      console.log("over");
       e.preventDefault();
       e.stopPropagation();
     };
@@ -110,7 +108,18 @@ const ChatApp = ({
       {/* <Sidebar oaCustomers={oaCustomers} onChangeCustomer={onChangeCustomer} customer={customer} /> */}
 
       {/* Main Chat Section */}
-      <Box sx={{ borderRight: "1px solid #ccc", pr: "1rem", width: 200 }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          borderRight: "1px solid #ccc",
+          pr: "1rem",
+          width: 300,
+          height: "calc(100vh - 66px)",
+          overflowY: "scroll",
+        }}
+      >
         <img src="./logo.png" width={200} height={200}></img>
         <Divider></Divider>
         <h2 className="font-bold py-2">Stored Documents</h2>

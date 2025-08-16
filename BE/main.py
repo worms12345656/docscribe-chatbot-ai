@@ -49,6 +49,7 @@ async def handler(websocket):
                         prompt = SEND_FILE_WITH_MESSAGE_PROMPT.format(
                             filename=filename,
                             question=user_message)
+                    print(prompt)
                     response = await handle_user_input(prompt)
                     await websocket.send(f"{response}")
 

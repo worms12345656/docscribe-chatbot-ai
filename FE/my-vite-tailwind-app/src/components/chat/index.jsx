@@ -216,10 +216,23 @@ const ChatApp = () => {
     };
 
     socket.onmessage = (event) => {
-      console.log("Nhận từ server:", event.data);
       setIsThinking(false);
       if (isJSON(event.data)) {
-        return setStoredFiles(JSON.parse(event.data).files);
+        const files = JSON.parse(event.data).files;
+        if (files) {
+          return setStoredFiles(JSON.parse(event.data).files);
+        }
+        // answer;
+        const answer = JSON.parse(event.data).answer;
+        if (answer)
+          return setMessages((prev) => [
+            ...prev,
+            {
+              text: answer,
+              type: "server",
+              sendTime: convertTimestamp(getToday()),
+            },
+          ]);
       }
 
       setMessages((prev) => [
@@ -488,7 +501,6 @@ const ChatApp = () => {
 
     setMessages((prev) => [...prev, message]);
     reset();
-    setValue("message", "");
     setIsThinking(true);
     handleScrollToBottom();
   });
@@ -496,8 +508,6 @@ const ChatApp = () => {
   const onChangeInput = (data) => {
     setMessage(data);
   };
-
-  console.log("intersection", intersection?.intersectionRatio);
 
   useEffect(() => {
     const bottomInView = intersection?.intersectionRatio;
