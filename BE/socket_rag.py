@@ -210,6 +210,41 @@ def tts(text):
     return "Your speech is ready to use"
 
 
+tavily_search_tool = TavilySearch(
+    api_key=os.getenv('TAVILY_API_KEY'),
+    max_results=1,
+    topic="general",
+)
+
+
+@tool
+def save_files(file_name):
+    """Save the file name user request into vectorDB"""
+    extension = os.path.splitext(file_name)[1]
+    if not extension:
+        return "This is not a file. Cannot save it"
+    if extension != '.pdf' and extension != '.txt':
+        return "Only accept pdf or txt file"
+    if extension == '.pdf':
+        documents = load_pdf(f"./documents/{file_name}")
+    if extension == '.txt':
+        documents = load_txt(f"./documents/{file_name}")
+    doc_splits = text_splitter.split_documents(documents)
+    existing_docs = vectorstore.get()
+    existing_names = {doc["document_name"]
+                      for doc in existing_docs["metadatas"] if doc.get("document_name")}
+    new_docs = [
+        doc for doc in doc_splits if doc.metadata["document_name"] not in existing_names]
+    if new_docs:
+        logger.info("Adding new documents to ChromaDB")
+        vectorstore.add_documents(new_docs)
+        vectorstore.persist()
+        return "Your file have been successfully add to memory"
+    else:
+        logger.info("File already stored in ChromaDB")
+        return "Your file have been already stored in our database"
+
+
 @tool
 # Set input format to string
 def palindrome_checker(text: str) -> str:
@@ -226,7 +261,7 @@ def palindrome_checker(text: str) -> str:
         return f"The phrase or word '{text}' is not a palindrome."
 
 
-tools = [tts, retriever_tool]
+tools = [tts, save_files, tavily_search_tool, retriever_tool]
 tool_lookup = {tool.name: tool for tool in tools}
 
 
@@ -377,8 +412,12 @@ def generate_answer(state: MessagesState):
     try:
         question = state["messages"][0].content
         context = state["messages"][-1].content
-        if state["messages"][-1].name != "retrieve_documents":
-            prompt = IMPROVE_PROMPT.format(question=question, context=context)
+        print(state["messages"][-1].name)
+        if state["messages"][-1].name == "tavily_search_tool":
+            return {"messages": [AIMessage(content=context)]}
+        elif state["messages"][-1].name != "retrieve_documents":
+            prompt = IMPROVE_RESPONSE_PROMPT.format(
+                question=last_human_message, context=context)
         else:
             prompt = GENERATE_PROMPT.format(question=question, context=context)
         response = response_model.invoke([{"role": "user", "content": prompt}])
