@@ -42,7 +42,6 @@ async def handler(websocket):
                     file_bytes = base64.b64decode(data["fileData"])
                     with open(f"./documents/{filename}", "wb") as f:
                         f.write(file_bytes)
-                    await websocket.send(json.dumps({"files": files}))
                     if user_message == "No Question":
                         prompt = SEND_FILE_PROMPT.format(filename=filename)
                     else:
