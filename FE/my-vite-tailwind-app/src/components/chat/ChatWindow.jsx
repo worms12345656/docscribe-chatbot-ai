@@ -75,6 +75,7 @@ const ChatWindow = ({
   handleScrollToBottom,
   setReaction,
   haveNewMessageBox,
+  isThinking,
 }) => {
   const theme = useTheme();
   const onDowloadFile = (url, name) => {
@@ -173,6 +174,7 @@ const ChatWindow = ({
           display: "flex",
           flexDirection: "column",
           overflow: "auto",
+          scrollbarWidth: "none",
           p: 2,
         }}
         ref={chatRef}
@@ -234,6 +236,7 @@ const ChatWindow = ({
                       reaction={item?.reaction}
                       index={index}
                       setReaction={setReaction}
+                      handleScrollToBottom={handleScrollToBottom}
                     >
                       {/* <Stack
                   direction={"row"}
@@ -287,6 +290,7 @@ const ChatWindow = ({
                       reaction={item?.reaction}
                       index={index}
                       setReaction={setReaction}
+                      handleScrollToBottom={handleScrollToBottom}
                     >
                       <Box
                         sx={{
@@ -316,6 +320,7 @@ const ChatWindow = ({
                     index={index}
                     setReaction={setReaction}
                     noReaction
+                    handleScrollToBottom={handleScrollToBottom}
                   >
                     <Box
                       sx={{
@@ -343,6 +348,7 @@ const ChatWindow = ({
                     reaction={item?.reaction}
                     index={index}
                     setReaction={setReaction}
+                    handleScrollToBottom={handleScrollToBottom}
                   >
                     <Stack
                       direction={"row"}
@@ -389,6 +395,7 @@ const ChatWindow = ({
                           reaction={item?.reaction}
                           index={index}
                           setReaction={setReaction}
+                          handleScrollToBottom={handleScrollToBottom}
                         >
                           <Box
                             sx={{
@@ -444,6 +451,7 @@ const ChatWindow = ({
                           reaction={item?.reaction}
                           index={index}
                           setReaction={setReaction}
+                          handleScrollToBottom={handleScrollToBottom}
                         >
                           <Box
                             sx={{
@@ -480,6 +488,7 @@ const ChatWindow = ({
                     reaction={item?.reaction}
                     index={index}
                     setReaction={setReaction}
+                    handleScrollToBottom={handleScrollToBottom}
                   >
                     <Box
                       sx={{
@@ -504,10 +513,31 @@ const ChatWindow = ({
             <Stack
               sx={{
                 fontSize: "32px",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "center",
               }}
             >
-              <p>Ask me anything about the documents</p>
+              <p>Your Personal Documents Scribe</p>
             </Stack>
+          )}
+          {isThinking && (
+            <ChatBubble
+              isTemplate
+              isHTML
+              sending={false}
+              error={""}
+              key={`message_payload_xxx`}
+              sendTime={""}
+              type={"server"}
+              avatar={""}
+              reaction={[]}
+              index={9999999999}
+              setReaction={setReaction}
+              handleScrollToBottom={handleScrollToBottom}
+            >
+              Chat bot is thinking...
+            </ChatBubble>
           )}
         </Stack>
         <Box ref={bottomRef}></Box>

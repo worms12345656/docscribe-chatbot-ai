@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import { io } from "socket.io-client";
 import { getSocketDomain } from "@/js/core/Domain";
 import { getCookie } from "@/js/core/Cookie";
-import { Box, Drawer, IconButton } from "@mui/material";
+import { Box, Divider, Drawer, IconButton, Stack } from "@mui/material";
 import ChatWindow from "./ChatWindow";
 import MessageInput from "./MessageInput";
+import { useFormContext } from "react-hook-form";
+import { LineOutlined } from "@ant-design/icons";
 
 const ChatApp = ({
   sendMessage,
@@ -23,32 +25,103 @@ const ChatApp = ({
   chatRef,
   setReaction,
   haveNewMessageBox,
+  isThinking,
+  storedFiles,
 }) => {
-  const { user } = useSelector((state) => state.auth);
-  const { oa } = useSelector((state) => state.oa);
-  const [customerId, setCustomerId] = useState("");
-  const [isChatting, setIsChatting] = useState(false);
+  const inputFileRef = useRef(null);
+  const [isDragFile, setIsDragFile] = useState(false);
   //   const [message, setMessage] = useState("");
   //   const [messages, setMessages] = useState([]);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
+  const { setValue } = useFormContext();
 
-  const toggleRightSidebar = () => {
-    setIsRightSidebarOpen(!isRightSidebarOpen);
-    console.log("customer", customer);
-  };
+  useEffect(() => {
+    const handleDrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log("ưe");
+      // const droppedFiles = Array.from(e.dataTransfer.files);
+      const files = e.dataTransfer.files[0];
+      const url = URL.createObjectURL(files);
+      setValue("filePreview", {
+        files,
+        url,
+      });
+      setIsDragFile(false);
+    };
+
+    const handleDragEnter = (e) => {
+      console.log("enter");
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragFile(true);
+    };
+
+    const handleDragOver = (e) => {
+      console.log("over");
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    const handleDragLeave = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.relatedTarget === null) {
+        setIsDragFile(false);
+      }
+    };
+
+    window.addEventListener("dragenter", handleDragEnter);
+    window.addEventListener("dragleave", handleDragLeave);
+    window.addEventListener("dragover", handleDragOver);
+    window.addEventListener("drop", handleDrop);
+
+    return () => {
+      window.removeEventListener("dragenter", handleDragEnter);
+      window.removeEventListener("dragleave", handleDragLeave);
+      window.removeEventListener("dragover", handleDragOver);
+      window.removeEventListener("drop", handleDrop);
+    };
+  }, []);
+
+  // const handleFilesChange = async (event) => {
+  //   const files = event.target.files[0];
+  //   console.log(files);
+  //   if (files) {
+  //     const url = URL.createObjectURL(files);
+  //     setValue("filePreview", {
+  //       files: files,
+  //       url,
+  //     });
+  //     setFocus("message");
+  //   }
+  // };
+  console.log("data.files", storedFiles);
 
   return (
     <Box
       sx={{
+        position: "relative",
         display: "flex",
-        width: "100vh",
-        height: "calc(100vh - 128px)",
+        height: "calc(100vh - 66px)",
       }}
     >
       {/* Left Sidebar */}
       {/* <Sidebar oaCustomers={oaCustomers} onChangeCustomer={onChangeCustomer} customer={customer} /> */}
 
       {/* Main Chat Section */}
+      <Box sx={{ borderRight: "1px solid #ccc", pr: "1rem", width: 200 }}>
+        <img src="./logo.png" width={200} height={200}></img>
+        <Divider></Divider>
+        <h2 className="font-bold py-2">Stored Documents</h2>
+        {storedFiles &&
+          storedFiles.map((item) => (
+            <>
+              <p className="text-start">{item}</p>
+              <LineOutlined></LineOutlined>
+            </>
+          ))}
+      </Box>
       <Box
         sx={{
           display: "flex",
@@ -56,6 +129,7 @@ const ChatApp = ({
           width: "100%",
           // flex: isRightSidebarOpen ? 1 : 1.5,
           transition: "flex 0.3s ease",
+          mx: "32px",
         }}
       >
         <ChatWindow
@@ -63,12 +137,12 @@ const ChatApp = ({
           messages={messages}
           bottomRef={bottomRef}
           customer={customer}
-          toggleRightSidebar={toggleRightSidebar}
           isRightSidebarOpen={isRightSidebarOpen}
           chatRef={chatRef}
           setReaction={setReaction}
           handleScrollToBottom={handleScrollToBottom}
           haveNewMessageBox={haveNewMessageBox}
+          isThinking={isThinking}
         />
         <MessageInput
           sendMessage={sendMessage}
@@ -78,6 +152,31 @@ const ChatApp = ({
           sendFilesMessage={sendFilesMessage}
         />
       </Box>
+
+      {isDragFile && (
+        <Stack
+          sx={{
+            position: "absolute",
+            width: "100%",
+            height: "calc(100vh - 66px)",
+            backgroundColor: "#f0f8ff",
+          }}
+          alignItems={"center"}
+          justifyContent={"center"}
+          onClick={() => inputFileRef.current.click()}
+        >
+          <input
+            type="file"
+            value={""}
+            style={{ display: "none" }}
+            accept={".pdf,.txt,.docs"}
+            multiple
+            ref={inputFileRef}
+            // onChange={handleFilesChange}
+          ></input>
+          <p className="">Drag & drop files here, or click to upload</p>
+        </Stack>
+      )}
 
       {/* Right Sidebar */}
       {/* {isRightSidebarOpen && <RightSidebar customer={customer} />} */}

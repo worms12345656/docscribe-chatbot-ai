@@ -8,7 +8,7 @@ from langchain_community.vectorstores import Chroma
 from langgraph.checkpoint.memory import InMemorySaver
 from typing import Literal
 import os
-import platform
+from langchain_tavily import TavilySearch
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.tools.retriever import create_retriever_tool
@@ -88,7 +88,7 @@ embedding_client = OpenAIEmbeddings(
         "OPENAI_API_BASE", "https://api.openai.com/v1"),
     model=os.environ.get("EMBEDDING_MODEL", "text-embedding-ada-002"),
     api_key=os.environ.get(
-        "EMBEDDING_KEY", os.environ.get("OPENAI_API_KEY"))
+        "EMBEDDING_KEY", os.environ.get("EMBEDDING_KEY"))
 )
 
 # Load and process documents from directory
@@ -161,6 +161,7 @@ except Exception as e:
 try:
     logger.debug("Checking for existing documents in ChromaDB")
     existing_docs = vectorstore.get()
+    print(existing_docs)
     existing_names = {doc["document_name"]
                       for doc in existing_docs["metadatas"] if doc.get("document_name")}
     logger.debug(
@@ -231,6 +232,42 @@ def save_files(file_name):
         documents = load_txt(f"./documents/{file_name}")
     doc_splits = text_splitter.split_documents(documents)
     existing_docs = vectorstore.get()
+    print(existing_docs)
+    existing_names = {doc["document_name"]
+                      for doc in existing_docs["metadatas"] if doc.get("document_name")}
+    new_docs = [
+        doc for doc in doc_splits if doc.metadata["document_name"] not in existing_names]
+    if new_docs:
+        logger.info("Adding new documents to ChromaDB")
+        vectorstore.add_documents(new_docs)
+        vectorstore.persist()
+        return "Your file have been successfully add to memory"
+    else:
+        logger.info("File already stored in ChromaDB")
+        return "Your file have been already stored in our database"
+
+
+tavily_search_tool = TavilySearch(
+    api_key=os.getenv('TAVILY_API_KEY'),
+    max_results=1,
+    topic="general",
+)
+
+
+@tool
+def save_files(file_name):
+    """Save the file name user request into vectorDB"""
+    extension = os.path.splitext(file_name)[1]
+    if not extension:
+        return "This is not a file. Cannot save it"
+    if extension != '.pdf' and extension != '.txt':
+        return "Only accept pdf or txt file"
+    if extension == '.pdf':
+        documents = load_pdf(f"./documents/{file_name}")
+    if extension == '.txt':
+        documents = load_txt(f"./documents/{file_name}")
+    doc_splits = text_splitter.split_documents(documents)
+    existing_docs = vectorstore.get()
     existing_names = {doc["document_name"]
                       for doc in existing_docs["metadatas"] if doc.get("document_name")}
     new_docs = [
@@ -268,7 +305,6 @@ tool_lookup = {tool.name: tool for tool in tools}
 # Initialize the response model
 response_model = ChatOpenAI(
     model="GPT-4o-mini",
-    temperature=0.7,
     timeout=None,
     max_retries=2,
     base_url=os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1"),
@@ -304,12 +340,25 @@ GENERATE_PROMPT = (
     "Context: {context}"
 )
 
-IMPROVE_PROMPT = (
-    "You are an assistant for make response better "
-    "Use the following response context of system and return a better response base on user question"
-    "Question: {question} \n"
-    "Context: {context}"
+IMPROVE_RESPONSE_PROMPT = (
+    "You are an assistant for make response better. "
+    "Use the following base old response of system and return a better response base on Base Question."
+    "Return the improve the system response only\n"
+    "Base Question: {question} \n"
+    "Base Response: {context}"
 )
+
+
+# SYSTEM_PROMPT = (
+#     "You are a helpful document scribe specialized in answer question about documents."
+#     "You can answer user question base on stored documents."
+#     "If user question contain keyword like save or upload, execute save_files."
+#     "User can upload file for chatbot can read."
+#     "If user don't upload any file, answer on stored document."
+#     "If file extension isn't pdf or txt. Tell user that only accept .pdf or .txt file and do not load documents."
+#     "If file extension is pdf or txt, Load the document with file name is the file user upload and store it into vector db."
+#     "if file is stored in DB. Do not load it anymore."
+# )
 
 # Define grading model
 
@@ -323,7 +372,6 @@ class GradeDocuments(BaseModel):
 
 grader_model = ChatOpenAI(
     model="GPT-4o-mini",
-    temperature=0.7,
     timeout=None,
     max_retries=2,
     base_url=os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1"),
@@ -337,6 +385,8 @@ def generate_query_or_respond(state: MessagesState):
     """Call the model to generate a response or retrieve information based on the current state."""
     logger.debug("Generating query or response")
     try:
+        if isinstance(state["messages"][-1], AIMessage):
+            return "tools"
         logger.debug(state["messages"])
         response = response_model.invoke(state["messages"])
         logger.debug(f"Generated response: {response.content[:100]}...")
@@ -410,7 +460,9 @@ def generate_answer(state: MessagesState):
     """Generate an answer based on retrieved context."""
     logger.debug("Generating answer")
     try:
-        question = state["messages"][0].content
+        messages = state["messages"]
+        human_messages = [m for m in messages if isinstance(m, HumanMessage)]
+        last_human_message = human_messages[-1] if human_messages else None
         context = state["messages"][-1].content
         print(state["messages"][-1].name)
         if state["messages"][-1].name == "tavily_search_tool":
@@ -419,8 +471,13 @@ def generate_answer(state: MessagesState):
             prompt = IMPROVE_RESPONSE_PROMPT.format(
                 question=last_human_message, context=context)
         else:
-            prompt = GENERATE_PROMPT.format(question=question, context=context)
+            prompt = GENERATE_PROMPT.format(
+                question=last_human_message, context=context)
+        logger.info(f"Generating answer {prompt}")
         response = response_model.invoke([{"role": "user", "content": prompt}])
+        if isinstance(response, ToolMessage):
+            return "generate_query_or_respond"
+        logger.info(f"Generating answer {response}")
         logger.debug(f"Generated answer: {response.content[:100]}...")
         return {"messages": [response]}
     except Exception as e:
@@ -465,10 +522,10 @@ workflow = StateGraph(MessagesState)
 workflow.add_node(generate_query_or_respond)
 workflow.add_node(rewrite_question)
 workflow.add_node(generate_answer)
-workflow.add_node(rewrite_user_question)
+# workflow.add_node(rewrite_user_question)
 
-workflow.add_edge(START, "rewrite_user_question")
-workflow.add_edge("rewrite_user_question", "generate_query_or_respond")
+workflow.add_edge(START, "generate_query_or_respond")
+# workflow.add_edge("generate_query_or_respond", "generate_query_or_respond")
 # workflow.add_conditional_edges(
 #     "generate_query_or_respond",
 #     tools_condition,
@@ -506,14 +563,19 @@ async def handle_user_input(user_input):
         logger.debug("Exiting chatbot")
         print("Chatbot: Goodbye!")
     try:
-        async for chunk in graph.astream({"messages": [{"role": "user", "content": user_input}]}, config):
+        async for chunk in graph.astream({"messages": [
+                {"role": "user", "content": user_input}]}, config):
             for node, update in chunk.items():
                 if node == "generate_answer":
                     logger.debug("Outputting generated answer")
                     return f"{update['messages'][-1].content}"
+                # elif node == "generate_query_or_respond" and update["messages"][-1].tool_calls == "save_files":
+                #     logger.debug("Outputting direct response")
+                #     return f"{update['messages'][-1].content}"
                 elif node == "generate_query_or_respond" and not update["messages"][-1].tool_calls:
                     logger.debug("Outputting direct response")
                     return f"{update['messages'][-1].content}"
+
     except Exception as e:
         logger.error(f"Error processing user input: {str(e)}")
         print("Chatbot: An error occurred. Please try again.")

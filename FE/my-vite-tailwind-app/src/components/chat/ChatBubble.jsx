@@ -52,7 +52,7 @@ const ChatBubble = ({
   const theme = useTheme();
   const [timeStamp, setTimeStamp] = useState(false);
   const [addReaction, setAddReaction] = useState(false);
-  const fullText = children.props.children;
+  const fullText = children.props ? children.props.children : children;
   const [messages, setMessages] = useState("");
   const [messagesIndex, setMessagesIndex] = useState(0);
   const timeoutRef = useRef(null);
@@ -87,9 +87,7 @@ const ChatBubble = ({
   };
   useEffect(() => {
     if (type === "server" && messagesIndex < fullText.length) {
-      console.log(fullText.length);
       setTimeout(() => {
-        console.log(fullText[messagesIndex]);
         setMessages((prev) => prev + fullText[messagesIndex]);
         setMessagesIndex(messagesIndex + 1);
         handleScrollToBottom();
@@ -138,10 +136,14 @@ const ChatBubble = ({
               overflow: "hidden",
               width: type === "client" ? "fit-content" : "100%",
               whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
               textAlign: "start",
+              maxWidth: type === "client" ? "900px" : "100%",
             }}
           >
-            {type === "server" ? messages.slice(1) : children}
+            {type === "server"
+              ? messages.slice(1).replace("Improved Response: ", "")
+              : children}
           </StyledBubble>
           {/* <Box sx={{ position: "relative", height: 40, width: 112 }}>
             {timeStamp && (

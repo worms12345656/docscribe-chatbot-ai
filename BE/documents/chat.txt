@@ -1,0 +1,159 @@
+import apiClient from '@/js/core/ApiClient';
+import { getCookie } from '@/js/core/Cookie';
+import React, { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import { io } from 'socket.io-client';
+
+const ChatApp = () => {
+  const { user } = useSelector((state) => state.auth);
+  const { oa } = useSelector((state) => state.oa);
+  const [customerId, setCustomerId] = useState('');
+  const [isChatting, setIsChatting] = useState(false);
+  const [message, setMessage] = useState('');
+  const [image, setImage] = useState(null);
+  const [messages, setMessages] = useState([]);
+
+  const socket = io('http://localhost:3001', {
+    query: { oaId: oa.id },
+  });
+
+  useEffect(() => {
+    socket.on('receive_message', (data) => {
+      if (data.customerId === customerId) {
+        setMessages((prev) => [...prev, data]);
+      }
+    });
+
+    return () => {
+      socket.off('receive_message');
+    };
+  }, [socket, customerId]);
+
+  const handleStartChat = () => {
+    if (customerId.trim()) {
+      setIsChatting(true);
+    } else {
+      alert('Please enter a Customer ID');
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (message.trim() || image) {
+      const formData = new FormData();
+      formData.append('customerId', customerId);
+      if (message.trim()) formData.append('message', message);
+      if (image) formData.append('image', image);
+
+      const response = await apiClient.post('/oas/messages/send-message', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response.code == 200) {
+        if (image) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64Image = reader.result;
+            const data = {
+              oaId: oa.id,
+              customerId: customerId,
+              image: base64Image,
+            };
+            socket.emit('send_message', data);
+          };
+          reader.readAsDataURL(image);
+        } else {
+          const data = {
+            oaId: oa.id,
+            customerId: customerId,
+            message: message,
+          }
+          socket.emit('send_message', data);
+        }
+      }
+    } else {
+      alert('Please enter a message or select an image');
+    }
+  };
+
+  const handleImageChange = (e) => {
+    setImage(e.target.files[0]);
+  };
+
+  return (
+    <div style={{ maxWidth: '500px', margin: '0 auto', padding: '20px' }}>
+      {!isChatting ? (
+        <>
+          <h2>Start a Chat</h2>
+          <input
+            type="text"
+            placeholder="Enter Customer ID"
+            value={customerId}
+            onChange={(e) => setCustomerId(e.target.value)}
+            style={{ width: '100%', padding: '10px', marginBottom: '10px' }}
+          />
+          <button onClick={handleStartChat} style={{ width: '100%', padding: '10px' }}>
+            Start
+          </button>
+        </>
+      ) : (
+        <>
+          <h2>Chat with {customerId}</h2>
+          <div
+            style={{
+              border: '1px solid #ccc',
+              padding: '10px',
+              height: '300px',
+              overflowY: 'auto',
+              marginBottom: '10px',
+              backgroundColor: '#f9f9f9',
+            }}
+          >
+            {messages.length > 0 ? (
+              messages.map((msg, index) => (
+                <div
+                  key={index}
+                  style={{
+                    textAlign: msg.sender !== 'oa' ? 'right' : 'left',
+                    margin: '5px 0',
+                  }}
+                >
+                  <strong>{msg.sender === 'oa' ? 'OA' : `Customer ${customerId}`}:</strong>{' '}
+                  {msg.message && <p>{msg.message}</p>}
+                  {msg.image && (
+                    <img
+                      src={msg.image}
+                      alt="Uploaded"
+                      style={{ maxWidth: '100%', maxHeight: '200px', marginTop: '5px' }}
+                    />
+                  )}
+                </div>
+              ))
+            ) : (
+              <p style={{ textAlign: 'center', color: '#999' }}>No messages yet</p>
+            )}
+          </div>
+          <input
+            type="text"
+            placeholder="Enter your message"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            style={{ width: '100%', padding: '10px', marginBottom: '10px' }}
+          />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageChange}
+            style={{ width: '100%', marginBottom: '10px' }}
+          />
+          <button onClick={handleSendMessage} style={{ width: '100%', padding: '10px' }}>
+            Send
+          </button>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default ChatApp;

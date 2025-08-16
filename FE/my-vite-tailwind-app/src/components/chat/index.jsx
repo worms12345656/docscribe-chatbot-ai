@@ -16,11 +16,12 @@ const ChatApp = () => {
   const [ws, setWs] = useState(null);
   const [customer, setCustomer] = useState();
   const [oaCustomers, setOaCustomers] = useState([]);
-  const [isChatting, setIsChatting] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(2);
+  const [storedFiles, setStoredFiles] = useState([]);
   const [haveNewMessageBox, setHaveNewMessageBox] = useState(false);
   const socketRef = useRef(null);
   const bottomRef = useRef(null);
@@ -192,8 +193,21 @@ const ChatApp = () => {
     // }
   };
 
-  const methods = useForm();
-  const { handleSubmit, reset } = methods;
+  const methods = useForm({
+    defaultValues: {
+      message: "",
+    },
+  });
+  const { handleSubmit, reset, setValue } = methods;
+
+  function isJSON(str) {
+    try {
+      JSON.parse(str);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 
   useEffect(() => {
     const socket = new WebSocket("ws://localhost:8765");
@@ -203,6 +217,11 @@ const ChatApp = () => {
 
     socket.onmessage = (event) => {
       console.log("Nhận từ server:", event.data);
+      setIsThinking(false);
+      if (isJSON(event.data)) {
+        return setStoredFiles(JSON.parse(event.data).files);
+      }
+
       setMessages((prev) => [
         ...prev,
         {
@@ -338,14 +357,9 @@ const ChatApp = () => {
   const sendFilesMessage = async (input) => {
     const files = input.filePreview.files;
 
-    const imagePreviewsArray = [];
-
     const formData = new FormData();
-    formData.append("oaId", oa?.id);
-    formData.append("customerId", customer?.zaloOAUserId);
 
     if (files) {
-      const thumbnailBlob = await convertFileUpload(files);
       formData.append("file", files);
 
       setMessages((prev) => [
@@ -360,42 +374,15 @@ const ChatApp = () => {
           reaction: [],
         },
       ]);
+      ws.send({
+        message: input.message,
+        file: files,
+      });
       reset();
+
       handleScrollToBottom();
-      try {
-        const response = await fileApiClient.post(
-          "/oas/messages/send-file-message",
-          formData
-        );
-        if (response.code === RESPONSE_STATUS_OK) {
-          setMessages((prev) => [...prev.slice(0, -1)]);
-          socketRef.current.emit("send_message", {
-            oaId: oa?.id,
-            customerId: customer?.zaloOAUserId,
-            image: input.filePreview,
-            message: input.message,
-            time: Date.now(),
-            fileName: files.name,
-            fileType: files.type,
-          });
-        } else {
-          setMessages((prev) => [
-            ...prev.slice(0, -1),
-            {
-              text: input.message,
-              type: "oa_send",
-              sendTime: convertTimestamp(Date.now()),
-              image: input.filePreview,
-              sending: true,
-              error: "Cannot send message",
-              reaction: [],
-            },
-          ]);
-          handleScrollToBottom();
-        }
-      } catch (e) {
-        console.log(e);
-      }
+      setMessages((prev) => [...prev.slice(0, -1)]);
+      ws.send(input.message);
     }
   };
 
@@ -465,32 +452,44 @@ const ChatApp = () => {
   // };
 
   const sendMessage = handleSubmit(async (input) => {
-    if (input.image) {
-      return await sendImagesMessage(input);
-    }
-    if (input.filePreview) {
-      return await sendFilesMessage(input);
-    }
-    if (input.sticker) {
-      return await sendStickerMessage(input);
-    }
+    const files = input.filePreview ? input.filePreview.files : null;
+    console.log(input.message);
     if (!ws) return;
     const data = {
-      oaId: oa?.id,
-      customerId: customer?.zaloOAUserId,
       message: input.message,
-      time: Date.now(),
+      filename: files,
+      fileData: files ? files.name : null,
     };
+
     const message = {
       text: data.message,
       type: "client",
       sendTime: convertTimestamp(data.time),
-      image: data.image,
+      image: input.filePreview,
       sending: false,
     };
-    ws.send(input.message);
+
+    if (files) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        console.log(files);
+        const base64Data = reader.result.split(",")[1];
+        const payload = {
+          message: input.message || "No Question",
+          filename: files.name,
+          fileData: base64Data,
+        };
+        ws.send(JSON.stringify(payload));
+      };
+      reader.readAsDataURL(files);
+    } else {
+      ws.send(JSON.stringify(data));
+    }
+
     setMessages((prev) => [...prev, message]);
     reset();
+    setValue("message", "");
+    setIsThinking(true);
     handleScrollToBottom();
   });
 
@@ -508,7 +507,7 @@ const ChatApp = () => {
   return (
     <>
       <FormProvider {...methods}>
-        <form onSubmit={sendMessage}>
+        <form onSubmit={sendMessage} className="w-full">
           <ChatLayout
             lastMessageRef={lastMessageRef}
             sendMessage={sendMessage}
@@ -525,6 +524,8 @@ const ChatApp = () => {
             setReaction={setReaction}
             handleScrollToBottom={handleScrollToBottom}
             haveNewMessageBox={haveNewMessageBox}
+            isThinking={isThinking}
+            storedFiles={storedFiles}
           ></ChatLayout>
         </form>
       </FormProvider>
