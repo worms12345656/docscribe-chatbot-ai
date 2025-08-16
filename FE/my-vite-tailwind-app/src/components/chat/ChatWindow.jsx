@@ -4,6 +4,7 @@ import {
   Avatar,
   Box,
   Chip,
+  Divider,
   IconButton,
   Stack,
   Typography,
@@ -379,6 +380,8 @@ const ChatWindow = ({
                         </Typography>
                       </Typography>
                     </Stack>
+                    <Divider color="black"></Divider>
+                    {item.text && <p className="pt-1">{item.text}</p>}
                   </ChatBubble>
                 )}
                 {item.attachments &&

@@ -216,7 +216,6 @@ const ChatApp = () => {
     };
 
     socket.onmessage = (event) => {
-      console.log("Nhận từ server:", event.data);
       setIsThinking(false);
       if (isJSON(event.data)) {
         const data = JSON.parse(event.data);
@@ -505,7 +504,6 @@ const ChatApp = () => {
 
     setMessages((prev) => [...prev, message]);
     reset();
-    setValue("message", "");
     setIsThinking(true);
     handleScrollToBottom();
   });
@@ -513,8 +511,6 @@ const ChatApp = () => {
   const onChangeInput = (data) => {
     setMessage(data);
   };
-
-  console.log("intersection", intersection?.intersectionRatio);
 
   useEffect(() => {
     const bottomInView = intersection?.intersectionRatio;
